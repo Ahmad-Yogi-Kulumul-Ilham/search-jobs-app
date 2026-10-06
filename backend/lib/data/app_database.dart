@@ -6,6 +6,7 @@ import '../models/job.dart';
 import '../util/region.dart';
 import 'alert_store.dart';
 import 'application_store.dart';
+import 'cv_store.dart';
 import 'job_store.dart';
 import 'settings_store.dart';
 import 'source_store.dart';
@@ -29,6 +30,7 @@ class AppDatabase {
   late final SourceStore sources = SourceStore(sql);
   late final SettingsStore settings = SettingsStore(sql);
   late final AlertStore alerts = AlertStore(sql);
+  late final CvStore cvs = CvStore(sql);
 
   void close() => sql.close();
 
@@ -150,4 +152,36 @@ final List<void Function(Database)> _migrations = [
       ]);
     }
   },
+  (sql) => sql.execute('''
+    CREATE TABLE cvs (
+      id INTEGER PRIMARY KEY AUTOINCREMENT,
+      name TEXT NOT NULL,
+      file_name TEXT NOT NULL,
+      format TEXT NOT NULL,
+      bytes BLOB NOT NULL,
+      text TEXT NOT NULL,
+      created_at INTEGER NOT NULL
+    );
+    CREATE TABLE reviews (
+      job_id TEXT NOT NULL,
+      cv_id INTEGER NOT NULL,
+      score INTEGER NOT NULL,
+      result TEXT NOT NULL,
+      model TEXT NOT NULL,
+      cost_usd REAL NOT NULL,
+      created_at INTEGER NOT NULL,
+      PRIMARY KEY (job_id, cv_id)
+    );
+    CREATE TABLE answers (
+      id INTEGER PRIMARY KEY AUTOINCREMENT,
+      question TEXT NOT NULL,
+      answer TEXT NOT NULL,
+      updated_at INTEGER NOT NULL
+    );
+    CREATE TABLE ai_spend (
+      id INTEGER PRIMARY KEY AUTOINCREMENT,
+      cost_usd REAL NOT NULL,
+      created_at INTEGER NOT NULL
+    );
+  '''),
 ];

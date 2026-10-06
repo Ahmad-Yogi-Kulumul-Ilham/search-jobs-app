@@ -3,6 +3,7 @@ import 'package:flutter_test/flutter_test.dart';
 import 'package:http/http.dart' as http;
 import 'package:http/testing.dart';
 import 'package:search_jobs_app/app_services.dart';
+import 'package:search_jobs_app/file_picking.dart';
 import 'package:search_jobs_app/main.dart';
 import 'package:search_jobs_app/notifier.dart';
 import 'package:search_jobs_backend/search_jobs_backend.dart';
@@ -21,6 +22,8 @@ AppServices testServices(
   List<Job> jobs = const [],
   http.Response? Function(http.Request request)? onRequest,
   Notifier? notifier,
+  Future<http.Response> Function(http.Request request)? onClaude,
+  Future<PickedFile?> Function()? chooseCvFile,
 }) {
   final database = AppDatabase.inMemory();
   addTearDown(database.close);
@@ -32,6 +35,10 @@ AppServices testServices(
   return AppServices(
     database: database,
     notifier: notifier,
+    aiHttpClient: MockClient(
+      onClaude ?? (request) async => fail('unexpected Claude request'),
+    ),
+    chooseCvFile: chooseCvFile ?? () async => null,
     repository: JobRepository(
       database: database,
       client: MockClient((request) async {

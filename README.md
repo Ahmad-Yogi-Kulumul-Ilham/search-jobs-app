@@ -15,6 +15,9 @@ Aplikasi desktop Windows untuk mencari lowongan kerja remote dari beberapa situs
 - Pencarian tersimpan: notifikasi desktop saat ada lowongan baru yang cocok.
 - Pengingat follow-up (7 hari tanpa kabar setelah melamar) dan interview dalam 24 jam, di aplikasi dan lewat notifikasi.
 - Peringatan lowongan mencurigakan: meminta bayaran, kontak hanya lewat Telegram/WhatsApp, pembayaran lewat kripto atau kartu hadiah, janji penghasilan besar, email rekrutmen pribadi, atau tanpa nama perusahaan.
+- CV: unggah beberapa versi (PDF atau DOCX).
+- Review AI dengan Claude: skor kecocokan CV dengan lowongan, kekuatan, kekurangan, kata kunci yang hilang, saran penulisan ulang yang bisa disalin, dan cek apakah lowongan menerima pelamar dari Indonesia. Skor tampil di daftar lowongan.
+- Draf cover letter dan bank jawaban untuk pertanyaan formulir yang sering muncul, dengan draf dari AI.
 - Data tersimpan lokal (SQLite), jadi daftar terakhir tetap bisa dibuka tanpa internet.
 - Pembaruan otomatis saat aplikasi dibuka dan setiap 30 menit selama terbuka, untuk sumber yang datanya sudah lebih dari 6 jam.
 
@@ -70,7 +73,12 @@ flutter test
 
 Lowongan berasal dari API dan feed publik [Remote OK](https://remoteok.com), [Jobicy](https://jobicy.com), [We Work Remotely](https://weworkremotely.com), dan [Remotive](https://remotive.com). Setiap lowongan menampilkan sumbernya, dan tombol lamar selalu membuka halaman lowongan di situs asalnya. Aplikasi membatasi seberapa sering tiap sumber diambil sesuai ketentuan masing-masing.
 
+## Fitur AI
+
+Fitur AI memakai Claude API dan butuh API key dari [console.anthropic.com](https://console.anthropic.com) dengan saldo terisi. Ini berbeda dari langganan Claude Pro; biaya dihitung per pemakaian dan ditampilkan setelah setiap review. Masukkan key di Pengaturan. Key disimpan terenkripsi dengan Windows DPAPI, jadi hanya akun Windows Anda di komputer ini yang bisa membukanya.
+
+Model bisa dipilih di Pengaturan: Claude Opus 5.5 (bawaan, paling teliti), Claude Sonnet 5.5, atau Claude Haiku 4.5 (paling hemat). Setiap review mengirim CV dan teks lowongan ke Anthropic. AI diminta hanya menyusun ulang isi CV, tidak menambah pengalaman yang tidak ada.
+
 ## Rencana berikutnya
 
-1. Unggah CV dan review kecocokan dengan AI.
-2. Bantuan mengisi formulir lamaran.
+1. Bantuan mengisi formulir lamaran.

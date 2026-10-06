@@ -4,6 +4,116 @@ import 'package:search_jobs_backend/search_jobs_backend.dart';
 import '../../app_services.dart';
 import '../common.dart';
 
+/// The Claude API key and model used for CV reviews and drafts.
+class _AiSettings extends StatefulWidget {
+  const _AiSettings({required this.services});
+
+  final AppServices services;
+
+  @override
+  State<_AiSettings> createState() => _AiSettingsState();
+}
+
+class _AiSettingsState extends State<_AiSettings> {
+  final _key = TextEditingController();
+
+  @override
+  void dispose() {
+    _key.dispose();
+    super.dispose();
+  }
+
+  void _saveKey() {
+    final key = _key.text.trim();
+    if (key.isEmpty) return;
+    if (!key.startsWith('sk-ant-')) {
+      showMessage(
+        context,
+        'API key Anthropic biasanya diawali "sk-ant-". Periksa lagi.',
+      );
+      return;
+    }
+    widget.services.setApiKey(key);
+    _key.clear();
+    showMessage(context, 'API key tersimpan dan terenkripsi.');
+  }
+
+  @override
+  Widget build(BuildContext context) {
+    final services = widget.services;
+    final key = services.apiKey;
+    final theme = Theme.of(context);
+    return Column(
+      crossAxisAlignment: CrossAxisAlignment.start,
+      children: [
+        const SectionTitle('AI (Claude)'),
+        const Text(
+          'Dipakai untuk review CV, cover letter, dan draf jawaban. Butuh API '
+          'key dari console.anthropic.com (berbeda dari langganan Claude Pro) '
+          'dengan saldo terisi; biaya dihitung per pemakaian.',
+        ),
+        const SizedBox(height: 12),
+        if (key != null)
+          Row(
+            children: [
+              const Icon(Icons.key, size: 18),
+              const SizedBox(width: 8),
+              Expanded(
+                child: Text(
+                  'API key tersimpan: sk-ant-…${key.substring(key.length - 4)}',
+                ),
+              ),
+              TextButton(
+                onPressed: () => services.setApiKey(null),
+                child: const Text('Hapus'),
+              ),
+            ],
+          )
+        else
+          Row(
+            children: [
+              Expanded(
+                child: TextField(
+                  controller: _key,
+                  obscureText: true,
+                  onSubmitted: (_) => _saveKey(),
+                  decoration: const InputDecoration(
+                    labelText: 'API key Anthropic',
+                    hintText: 'sk-ant-…',
+                    border: OutlineInputBorder(),
+                    isDense: true,
+                  ),
+                ),
+              ),
+              const SizedBox(width: 10),
+              FilledButton(onPressed: _saveKey, child: const Text('Simpan')),
+            ],
+          ),
+        const SizedBox(height: 14),
+        DropdownMenu<AiModel>(
+          label: const Text('Model'),
+          initialSelection: services.aiModel,
+          width: 420,
+          dropdownMenuEntries: [
+            for (final model in AiModel.values)
+              DropdownMenuEntry(value: model, label: model.label),
+          ],
+          onSelected: (model) {
+            if (model != null) services.aiModel = model;
+          },
+        ),
+        const SizedBox(height: 8),
+        Text(
+          'Total biaya AI sejauh ini: '
+          '${services.formatUsd(services.database.cvs.totalCostUsd())}. '
+          'API key disimpan terenkripsi dengan akun Windows Anda.',
+          style: theme.textTheme.bodySmall,
+        ),
+      ],
+    );
+  }
+}
+
 /// App-wide settings and the lists of things the user chose not to see.
 class SettingsPage extends StatelessWidget {
   const SettingsPage({super.key, required this.services});
@@ -29,6 +139,7 @@ class SettingsPage extends StatelessWidget {
               child: ListView(
                 padding: const EdgeInsets.fromLTRB(24, 0, 24, 24),
                 children: [
+                  _AiSettings(services: services),
                   const SectionTitle('Notifikasi'),
                   SwitchListTile(
                     contentPadding: EdgeInsets.zero,

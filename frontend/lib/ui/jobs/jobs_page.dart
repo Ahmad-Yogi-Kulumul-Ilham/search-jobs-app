@@ -190,6 +190,7 @@ class _JobsPageState extends State<JobsPage> {
       sourceName: widget.services.registry.nameOf(job.sourceId),
       rates: widget.services.rates,
       controller: _controller,
+      services: widget.services,
     );
   }
 }

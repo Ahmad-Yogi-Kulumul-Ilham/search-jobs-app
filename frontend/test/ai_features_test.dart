@@ -1,0 +1,270 @@
+import 'dart:convert';
+import 'dart:io';
+import 'dart:typed_data';
+
+import 'package:flutter/material.dart';
+import 'package:flutter_test/flutter_test.dart';
+import 'package:http/http.dart' as http;
+import 'package:search_jobs_app/secret_box.dart';
+
+import 'support.dart';
+
+final _pdf = Uint8List.fromList(utf8.encode('%PDF-1.7\n% test CV'));
+
+const _reviewJson = {
+  'score': 82,
+  'verdict': 'CV ini cocok untuk posisi Flutter.',
+  'strengths': ['3 tahun membangun aplikasi Flutter'],
+  'gaps': ['Belum terlihat pengalaman GraphQL'],
+  'missing_keywords': ['Riverpod'],
+  'suggestions': [
+    {
+      'section': 'Ringkasan',
+      'original': 'Mobile developer.',
+      'revised': 'Flutter developer with 3 years of production apps.',
+      'reason': 'Menonjolkan Flutter sejak kalimat pertama.',
+    },
+  ],
+  'location_check': 'Lowongan terbuka untuk seluruh dunia.',
+};
+
+http.Response claudeAnswer(Object json) => http.Response.bytes(
+  utf8.encode(
+    jsonEncode({
+      'model': 'claude-opus-5-5',
+      'stop_reason': 'end_turn',
+      'content': [
+        {'type': 'text', 'text': jsonEncode(json)},
+      ],
+      'usage': {'input_tokens': 10000, 'output_tokens': 2000},
+    }),
+  ),
+  200,
+);
+
+void main() {
+  testWidgets('uploads a CV and refuses files it cannot read', (tester) async {
+    var file = (name: 'Budi CV.pdf', bytes: _pdf);
+    final services = testServices(tester, chooseCvFile: () async => file);
+    await pumpApp(tester, services);
+
+    await openPage(tester, 'CV');
+    expect(find.textContaining('Belum ada CV'), findsOneWidget);
+    await tester.tap(find.text('Unggah CV'));
+    await tester.pumpAndSettle();
+    expect(find.text('Budi CV'), findsOneWidget);
+    expect(find.textContaining('Budi CV.pdf · diunggah'), findsOneWidget);
+
+    file = (name: 'photo.png', bytes: _pdf);
+    await tester.tap(find.text('Unggah CV'));
+    await tester.pumpAndSettle();
+    expect(
+      find.text('Format tidak didukung. Pakai PDF atau DOCX.'),
+      findsOneWidget,
+    );
+    expect(services.database.cvs.all(), hasLength(1));
+  });
+
+  testWidgets('stores the API key and shows only its end', (tester) async {
+    final services = testServices(tester);
+    await pumpApp(tester, services);
+    await openPage(tester, 'Pengaturan');
+
+    await tester.enterText(
+      find.widgetWithText(TextField, 'API key Anthropic'),
+      'abc',
+    );
+    await tester.tap(find.widgetWithText(FilledButton, 'Simpan'));
+    await tester.pumpAndSettle();
+    expect(find.textContaining('diawali "sk-ant-"'), findsOneWidget);
+    expect(services.apiKey, isNull);
+
+    await tester.enterText(
+      find.widgetWithText(TextField, 'API key Anthropic'),
+      ' sk-ant-api03-secret-WXYZ ',
+    );
+    await tester.tap(find.widgetWithText(FilledButton, 'Simpan'));
+    await tester.pumpAndSettle();
+    expect(services.apiKey, 'sk-ant-api03-secret-WXYZ');
+    expect(find.text('API key tersimpan: sk-ant-…WXYZ'), findsOneWidget);
+    expect(find.textContaining('secret'), findsNothing);
+
+    await tester.tap(find.widgetWithText(TextButton, 'Hapus'));
+    await tester.pumpAndSettle();
+    expect(services.apiKey, isNull);
+  });
+
+  testWidgets('reviews a CV against a job and shows the score', (tester) async {
+    Map<String, Object?>? request;
+    final services = testServices(
+      tester,
+      jobs: [
+        testJob(
+          '1',
+          title: 'Flutter Developer',
+          location: 'Worldwide',
+          descriptionHtml: '<p>We need <b>Flutter</b> and Riverpod.</p>',
+        ),
+      ],
+      onClaude: (http.Request sent) async {
+        request = jsonDecode(sent.body) as Map<String, Object?>;
+        return claudeAnswer(_reviewJson);
+      },
+    );
+    services.database.cvs.add(
+      name: 'CV Utama',
+      fileName: 'cv.pdf',
+      bytes: _pdf,
+      now: DateTime.now(),
+    );
+    services.setApiKey('sk-ant-test');
+    await pumpApp(tester, services);
+
+    await tester.tap(find.text('Flutter Developer'));
+    await tester.pumpAndSettle();
+    await tester.tap(find.text('Review dengan AI'));
+    await tester.pumpAndSettle();
+
+    final content =
+        ((request!['messages'] as List).single as Map)['content'] as List;
+    expect(
+      ((content[1] as Map)['source'] as Map)['data'],
+      contains('We need Flutter and Riverpod.'),
+    );
+    expect(find.text('82%'), findsNWidgets(2));
+    expect(find.text('CV ini cocok untuk posisi Flutter.'), findsOneWidget);
+    expect(find.text('• Belum terlihat pengalaman GraphQL'), findsOneWidget);
+    expect(find.widgetWithText(Chip, 'Riverpod'), findsOneWidget);
+    expect(
+      find.text('Flutter developer with 3 years of production apps.'),
+      findsOneWidget,
+    );
+    expect(find.text('Review ulang'), findsOneWidget);
+    // 10k input and 2k output tokens on Opus: USD 0,080, at Rp 18.000.
+    expect(find.textContaining('USD 0,080 (≈ Rp 1.440)'), findsOneWidget);
+    expect(services.database.cvs.totalCostUsd(), closeTo(0.08, 1e-9));
+  });
+
+  testWidgets('shows why a review failed', (tester) async {
+    final services = testServices(
+      tester,
+      jobs: [testJob('1', title: 'Flutter Developer')],
+      onClaude: (_) async => http.Response(
+        '{"type":"error","error":{"type":"authentication_error",'
+        '"message":"invalid x-api-key"}}',
+        401,
+      ),
+    );
+    services.database.cvs.add(
+      name: 'CV',
+      fileName: 'cv.pdf',
+      bytes: _pdf,
+      now: DateTime.now(),
+    );
+    services.setApiKey('sk-ant-wrong');
+    await pumpApp(tester, services);
+
+    await tester.tap(find.text('Flutter Developer'));
+    await tester.pumpAndSettle();
+    await tester.tap(find.text('Review dengan AI'));
+    await tester.pumpAndSettle();
+
+    expect(find.textContaining('API key ditolak'), findsOneWidget);
+    expect(services.database.cvs.reviewsFor('remoteok:1'), isEmpty);
+  });
+
+  testWidgets('without a CV or key the panel explains what is missing', (
+    tester,
+  ) async {
+    final services = testServices(
+      tester,
+      jobs: [testJob('1', title: 'Flutter Developer')],
+    );
+    await pumpApp(tester, services);
+    await tester.tap(find.text('Flutter Developer'));
+    await tester.pumpAndSettle();
+    expect(find.textContaining('Unggah CV Anda di halaman CV'), findsOneWidget);
+
+    services.database.cvs.add(
+      name: 'CV',
+      fileName: 'cv.pdf',
+      bytes: _pdf,
+      now: DateTime.now(),
+    );
+    services.dataChanged();
+    await tester.pumpAndSettle();
+    expect(find.textContaining('Masukkan API key Claude'), findsOneWidget);
+  });
+
+  testWidgets('drafts a cover letter', (tester) async {
+    final services = testServices(
+      tester,
+      jobs: [testJob('1', title: 'Flutter Developer')],
+      onClaude: (_) async => claudeAnswer({
+        'subject': 'Application: Flutter Developer',
+        'letter': 'Dear Acme team, I build Flutter apps.',
+      }),
+    );
+    services.database.cvs.add(
+      name: 'CV',
+      fileName: 'cv.pdf',
+      bytes: _pdf,
+      now: DateTime.now(),
+    );
+    services.setApiKey('sk-ant-test');
+    await pumpApp(tester, services);
+
+    await tester.tap(find.text('Flutter Developer'));
+    await tester.pumpAndSettle();
+    await tester.tap(find.text('Buat cover letter'));
+    await tester.pumpAndSettle();
+
+    expect(find.text('Draf cover letter'), findsOneWidget);
+    expect(find.text('Subjek: Application: Flutter Developer'), findsOneWidget);
+    expect(find.text('Dear Acme team, I build Flutter apps.'), findsOneWidget);
+  });
+
+  testWidgets('saves an answer drafted by AI', (tester) async {
+    final services = testServices(
+      tester,
+      onClaude: (_) async =>
+          claudeAnswer({'answer': 'I enjoy building products people use.'}),
+    );
+    services.database.cvs.add(
+      name: 'CV',
+      fileName: 'cv.pdf',
+      bytes: _pdf,
+      now: DateTime.now(),
+    );
+    services.setApiKey('sk-ant-test');
+    await pumpApp(tester, services);
+    await openPage(tester, 'CV');
+
+    await tester.tap(find.text('Tambah jawaban'));
+    await tester.pumpAndSettle();
+    await tester.enterText(
+      find.widgetWithText(TextField, 'Pertanyaan'),
+      'Why do you want to work here?',
+    );
+    await tester.tap(find.text('Buat draf dengan AI'));
+    await tester.pumpAndSettle();
+    expect(find.text('I enjoy building products people use.'), findsOneWidget);
+    await tester.tap(find.widgetWithText(FilledButton, 'Simpan'));
+    await tester.pumpAndSettle();
+
+    expect(find.text('Why do you want to work here?'), findsOneWidget);
+    expect(
+      services.database.cvs.answers().single.answer,
+      'I enjoy building products people use.',
+    );
+  });
+
+  test('DPAPI seals so that only this Windows user can open', () {
+    final box = DpapiSecretBox();
+    final sealed = box.seal('sk-ant-api03-secret');
+    expect(sealed, isNot(contains('secret')));
+    expect(box.open(sealed), 'sk-ant-api03-secret');
+    expect(box.open('bm90IHNlYWxlZA=='), isNull);
+    expect(box.open('%%%'), isNull);
+  }, skip: !Platform.isWindows);
+}

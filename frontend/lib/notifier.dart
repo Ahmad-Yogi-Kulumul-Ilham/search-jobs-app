@@ -44,6 +44,5 @@ class RecordingNotifier implements Notifier {
   final List<Announcement> shown = [];
 
   @override
-  Future<void> show(Announcement announcement) async =>
-      shown.add(announcement);
+  Future<void> show(Announcement announcement) async => shown.add(announcement);
 }

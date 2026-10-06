@@ -336,7 +336,8 @@ const _listColumns = '''
   j.id, j.source_id, j.title, j.company, j.url, j.location, j.category,
   j.tags, j.job_type, j.salary, j.salary_min, j.salary_max,
   j.salary_currency, j.salary_period, j.published_at, j.scam_flags,
-  a.status AS tracked_status
+  a.status AS tracked_status,
+  (SELECT MAX(score) FROM reviews r WHERE r.job_id = j.id) AS match_score
 ''';
 
 /// Scam warnings for a job about to be stored, read from its description.
@@ -379,5 +380,6 @@ Job _jobFromRow(Row row) {
         : DateTime.fromMillisecondsSinceEpoch(publishedAt),
     trackedStatus: ApplicationStatus.byName(row['tracked_status'] as String?),
     warnings: (jsonDecode(row['scam_flags'] as String) as List).cast<String>(),
+    matchScore: row['match_score'] as int?,
   );
 }

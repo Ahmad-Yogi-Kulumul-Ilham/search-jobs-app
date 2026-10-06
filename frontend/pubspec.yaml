@@ -41,6 +41,9 @@ dependencies:
   search_jobs_backend:
     path: ../backend
   local_notifier: ^0.1.6
+  ffi: ^2.2.0
+  file_selector: ^1.1.0
+  http: ^1.6.0
 dev_dependencies:
   flutter_test:
     sdk: flutter
@@ -51,12 +54,6 @@ dev_dependencies:
   # package. See that file for information about deactivating specific lint
   # rules and activating additional ones.
   flutter_lints: ^6.0.0
-  http: ^1.6.0
-
-# For information on the generic Dart part of this file, see the
-# following page: https://dart.dev/tools/pub/pubspec
-
-# The following section is specific to Flutter packages.
 flutter:
 
   # The following line ensures that the Material Icons font is

@@ -20,6 +20,7 @@ class Job {
     this.publishedAt,
     this.trackedStatus,
     this.warnings = const [],
+    this.matchScore,
   });
 
   /// Unique across sources: `<sourceId>:<id given by the source>`.
@@ -52,6 +53,10 @@ class Job {
   /// Signs this could be a fake offer (see `scamWarnings`). Filled in when
   /// the job is stored, so only jobs read from the database carry them.
   final List<String> warnings;
+
+  /// The best score any of the user's CVs got in an AI review of this job,
+  /// or null when none was reviewed. Set only on jobs read from the database.
+  final int? matchScore;
 
   RegionFit get regionFit => classifyRegion(location);
 }

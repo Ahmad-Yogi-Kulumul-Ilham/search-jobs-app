@@ -1,6 +1,8 @@
 import 'package:flutter/material.dart';
 import 'package:search_jobs_backend/search_jobs_backend.dart';
 
+import 'review_panel.dart';
+
 /// One row of the job list.
 class JobListTile extends StatelessWidget {
   const JobListTile({
@@ -90,15 +92,25 @@ class JobListTile extends StatelessWidget {
                       ],
                     ),
                     const SizedBox(height: 4),
-                    Text(
-                      [
-                        sourceName,
-                        if (job.salary.isNotEmpty) job.salary,
-                        if (publishedAt != null) timeAgo(publishedAt),
-                      ].join(' · '),
-                      maxLines: 1,
-                      overflow: TextOverflow.ellipsis,
-                      style: muted,
+                    Row(
+                      children: [
+                        if (job.matchScore != null) ...[
+                          ScoreBadge(job.matchScore!),
+                          const SizedBox(width: 6),
+                        ],
+                        Expanded(
+                          child: Text(
+                            [
+                              sourceName,
+                              if (job.salary.isNotEmpty) job.salary,
+                              if (publishedAt != null) timeAgo(publishedAt),
+                            ].join(' · '),
+                            maxLines: 1,
+                            overflow: TextOverflow.ellipsis,
+                            style: muted,
+                          ),
+                        ),
+                      ],
                     ),
                   ],
                 ),

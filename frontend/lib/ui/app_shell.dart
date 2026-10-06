@@ -4,6 +4,7 @@ import 'package:flutter/material.dart';
 
 import '../app_services.dart';
 import 'common.dart';
+import 'cv/cv_page.dart';
 import 'jobs/jobs_page.dart';
 import 'settings/settings_page.dart';
 import 'sources/sources_page.dart';
@@ -84,6 +85,11 @@ class _AppShellState extends State<AppShell> {
                     label: const Text('Lamaran'),
                   ),
                   const NavigationRailDestination(
+                    icon: Icon(Icons.badge_outlined),
+                    selectedIcon: Icon(Icons.badge),
+                    label: Text('CV'),
+                  ),
+                  const NavigationRailDestination(
                     icon: Icon(Icons.rss_feed),
                     label: Text('Sumber'),
                   ),
@@ -105,6 +111,7 @@ class _AppShellState extends State<AppShell> {
               children: [
                 JobsPage(services: services),
                 TrackerPage(services: services),
+                CvPage(services: services),
                 SourcesPage(services: services),
                 SettingsPage(services: services),
               ],

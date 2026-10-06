@@ -5,6 +5,7 @@ import 'package:search_jobs_backend/search_jobs_backend.dart';
 
 import 'app_services.dart';
 import 'notifier.dart';
+import 'secret_box.dart';
 import 'ui/app_shell.dart';
 
 Future<void> main() async {
@@ -19,6 +20,7 @@ Future<void> main() async {
         database: database,
         repository: JobRepository(database: database),
         notifier: notifier,
+        secretBox: platformSecretBox(),
       ),
     ),
   );

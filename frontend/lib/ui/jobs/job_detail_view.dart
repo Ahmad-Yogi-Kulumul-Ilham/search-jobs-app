@@ -2,8 +2,10 @@ import 'package:flutter/material.dart';
 import 'package:flutter_widget_from_html_core/flutter_widget_from_html_core.dart';
 import 'package:search_jobs_backend/search_jobs_backend.dart';
 
+import '../../app_services.dart';
 import '../common.dart';
 import 'jobs_controller.dart';
+import 'review_panel.dart';
 
 /// Full view of one job, with the actions the user can take on it.
 class JobDetailView extends StatelessWidget {
@@ -14,8 +16,10 @@ class JobDetailView extends StatelessWidget {
     required this.sourceName,
     required this.rates,
     required this.controller,
+    required this.services,
   });
 
+  final AppServices services;
   final Job job;
   final String descriptionHtml;
   final String sourceName;
@@ -130,6 +134,12 @@ class JobDetailView extends StatelessWidget {
                     _TrackingButton(job: job, controller: controller),
                     _MoreMenu(job: job, controller: controller),
                   ],
+                ),
+                const SizedBox(height: 18),
+                ReviewPanel(
+                  services: services,
+                  job: job,
+                  descriptionText: plainText(descriptionHtml),
                 ),
                 const SizedBox(height: 18),
                 const Divider(height: 1),
