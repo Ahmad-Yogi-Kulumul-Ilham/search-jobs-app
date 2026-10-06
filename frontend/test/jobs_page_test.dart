@@ -1,58 +1,38 @@
 import 'package:flutter/material.dart';
 import 'package:flutter_test/flutter_test.dart';
-import 'package:http/testing.dart';
-import 'package:search_jobs_app/main.dart';
 import 'package:search_jobs_backend/search_jobs_backend.dart';
 
+import 'support.dart';
+
 void main() {
+  final rust = testJob(
+    '1',
+    title: 'Rust Engineer',
+    company: 'Fortanix',
+    location: 'Worldwide',
+    jobType: 'Penuh waktu',
+    salary: SalaryRange.of(
+      90000,
+      null,
+      currency: 'USD',
+      period: SalaryPeriod.year,
+    ),
+    descriptionHtml: '<p>Build <b>secure</b> systems.</p>',
+  );
+  final designer = testJob(
+    '2',
+    title: 'Product Designer',
+    location: 'Europe',
+    jobType: 'Kontrak',
+    descriptionHtml: '<p>Design things people love.</p>',
+    age: const Duration(days: 3),
+  );
+
   testWidgets('lists stored jobs, filters them, and opens one', (tester) async {
-    tester.view.physicalSize = const Size(1280, 720);
-    tester.view.devicePixelRatio = 1;
-    addTearDown(tester.view.reset);
+    final services = testServices(tester, jobs: [rust, designer]);
+    await pumpApp(tester, services);
 
-    final database = JobDatabase.inMemory();
-    addTearDown(database.close);
-    final now = DateTime.now();
-    // Every source counts as freshly fetched, so startup makes no requests.
-    for (final source in allSources) {
-      database.saveFetch(source.id, const [], now);
-    }
-    database.saveFetch('remoteok', [
-      Job(
-        id: 'remoteok:1',
-        sourceId: 'remoteok',
-        title: 'Rust Engineer',
-        company: 'Fortanix',
-        url: 'https://remoteok.com/remote-jobs/1',
-        location: 'Worldwide',
-        salary: 'USD 90.000 / tahun',
-        tags: const ['rust', 'backend'],
-        descriptionHtml: '<p>Build <b>secure</b> systems.</p>',
-        publishedAt: now.subtract(const Duration(hours: 2)),
-      ),
-      Job(
-        id: 'remoteok:2',
-        sourceId: 'remoteok',
-        title: 'Product Designer',
-        company: 'Acme',
-        url: 'https://remoteok.com/remote-jobs/2',
-        descriptionHtml: '<p>Design things people love.</p>',
-        publishedAt: now.subtract(const Duration(days: 3)),
-      ),
-    ], now);
-
-    final repository = JobRepository(
-      database: database,
-      sources: allSources,
-      client: MockClient((request) async {
-        fail('unexpected request to ${request.url}');
-      }),
-    );
-
-    await tester.pumpWidget(SearchJobsApp(repository: repository));
-    await tester.pumpAndSettle();
-
-    expect(find.text('2 lowongan'), findsOneWidget);
+    expect(find.textContaining('2 lowongan'), findsOneWidget);
     expect(find.text('Rust Engineer'), findsOneWidget);
     expect(find.text('Fortanix · Worldwide'), findsOneWidget);
     expect(
@@ -62,24 +42,103 @@ void main() {
 
     await tester.enterText(find.byType(TextField), 'designer');
     await tester.pumpAndSettle(const Duration(milliseconds: 300));
-
-    expect(find.text('1 lowongan'), findsOneWidget);
+    expect(find.textContaining('1 lowongan'), findsOneWidget);
     expect(find.text('Rust Engineer'), findsNothing);
 
     await tester.tap(find.text('Product Designer'));
     await tester.pumpAndSettle();
-
     expect(find.text('Lamar di Remote OK'), findsOneWidget);
+    expect(find.text('Lokasi terbatas'), findsOneWidget);
+    expect(find.textContaining('Eropa Tengah 15.00–23.00 WIB'), findsOneWidget);
     expect(
       find.textContaining('Design things people love', findRichText: true),
       findsOneWidget,
     );
+  });
 
-    // Turning the only source with jobs off empties the list.
-    await tester.tap(find.widgetWithText(FilterChip, 'Remote OK'));
+  testWidgets('quick filters narrow the list and reset restores it', (
+    tester,
+  ) async {
+    await pumpApp(tester, testServices(tester, jobs: [rust, designer]));
+
+    await tester.tap(find.widgetWithText(FilterChip, 'Bisa dari Indonesia'));
+    await tester.pumpAndSettle();
+    expect(find.textContaining('1 lowongan'), findsOneWidget);
+    expect(find.text('Product Designer'), findsNothing);
+
+    await tester.tap(find.text('Reset'));
+    await tester.pumpAndSettle();
+    expect(find.textContaining('2 lowongan'), findsOneWidget);
+
+    await tester.tap(find.widgetWithText(FilterChip, 'Ada gaji'));
+    await tester.pumpAndSettle();
+    expect(find.text('Rust Engineer'), findsOneWidget);
+    expect(find.text('Product Designer'), findsNothing);
+    await tester.tap(find.text('Reset'));
     await tester.pumpAndSettle();
 
-    expect(find.text('0 lowongan'), findsOneWidget);
-    expect(find.text('Tidak ada lowongan yang cocok.'), findsOneWidget);
+    await tester.tap(find.textContaining('Jenis kerja'));
+    await tester.pumpAndSettle();
+    await tester.tap(find.widgetWithText(CheckboxMenuButton, 'Kontrak'));
+    await tester.pumpAndSettle();
+    expect(find.text('Jenis kerja (1)'), findsOneWidget);
+    expect(find.text('Rust Engineer'), findsNothing);
+    expect(find.text('Product Designer'), findsOneWidget);
+  });
+
+  testWidgets('shows salary in rupiah and tracks a saved job', (tester) async {
+    final services = testServices(tester, jobs: [rust, designer]);
+    await pumpApp(tester, services);
+
+    await tester.tap(find.text('Rust Engineer'));
+    await tester.pumpAndSettle();
+    expect(find.text('Bisa dari Indonesia'), findsNWidgets(2));
+    expect(
+      find.text('USD 90.000 / tahun  ≈ Rp 135 jt / bulan'),
+      findsOneWidget,
+    );
+
+    await tester.tap(find.widgetWithText(OutlinedButton, 'Simpan'));
+    await tester.pumpAndSettle();
+    expect(find.text('Status: Disimpan'), findsOneWidget);
+    expect(
+      services.database.applications.find(rust.id)!.status,
+      ApplicationStatus.saved,
+    );
+
+    await tester.tap(find.text('Status: Disimpan'));
+    await tester.pumpAndSettle();
+    await tester.tap(find.widgetWithText(MenuItemButton, 'Dilamar'));
+    await tester.pumpAndSettle();
+    expect(find.text('Status: Dilamar'), findsOneWidget);
+
+    await openPage(tester, 'Lamaran');
+    expect(find.text('Dilamar · 1'), findsOneWidget);
+    expect(find.text('Disimpan · 0'), findsOneWidget);
+    expect(find.text('Rust Engineer'), findsOneWidget);
+  });
+
+  testWidgets('hiding a job removes it until hidden jobs are restored', (
+    tester,
+  ) async {
+    await pumpApp(tester, testServices(tester, jobs: [rust, designer]));
+
+    await tester.tap(find.text('Rust Engineer'));
+    await tester.pumpAndSettle();
+    await tester.tap(find.byTooltip('Lainnya'));
+    await tester.pumpAndSettle();
+    await tester.tap(find.text('Sembunyikan lowongan ini'));
+    await tester.pumpAndSettle();
+    expect(find.text('Rust Engineer'), findsNothing);
+    expect(find.textContaining('1 lowongan'), findsOneWidget);
+
+    await openPage(tester, 'Pengaturan');
+    expect(find.text('1 lowongan disembunyikan'), findsOneWidget);
+    await tester.tap(find.text('Tampilkan semua lagi'));
+    await tester.pumpAndSettle();
+    expect(find.text('0 lowongan disembunyikan'), findsOneWidget);
+
+    await openPage(tester, 'Lowongan');
+    expect(find.text('Rust Engineer'), findsOneWidget);
   });
 }

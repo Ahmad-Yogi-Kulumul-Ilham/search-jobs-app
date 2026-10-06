@@ -1,4 +1,5 @@
 import '../models/job.dart';
+import '../models/salary.dart';
 import '../util/format.dart';
 import 'job_source.dart';
 
@@ -25,6 +26,13 @@ class RemoteOkSource extends JobSource {
       final url = asText(item['url']);
       if (sourceJobId.isEmpty || title.isEmpty || url.isEmpty) continue;
       final epoch = item['epoch'];
+      // Remote OK reports salaries as yearly USD amounts.
+      final salary = SalaryRange.of(
+        asNum(item['salary_min']),
+        asNum(item['salary_max']),
+        currency: 'USD',
+        period: SalaryPeriod.year,
+      );
       jobs.add(
         Job(
           id: '$id:$sourceJobId',
@@ -34,13 +42,8 @@ class RemoteOkSource extends JobSource {
           url: url,
           location: plainText(asText(item['location'])),
           tags: asTextList(item['tags']),
-          // Remote OK reports salaries as yearly USD amounts.
-          salary: formatSalary(
-            asNum(item['salary_min']),
-            asNum(item['salary_max']),
-            currency: 'USD',
-            period: 'year',
-          ),
+          salary: salary?.label ?? '',
+          salaryRange: salary,
           descriptionHtml: asText(item['description']),
           publishedAt: epoch is int
               ? DateTime.fromMillisecondsSinceEpoch(epoch * 1000, isUtc: true)

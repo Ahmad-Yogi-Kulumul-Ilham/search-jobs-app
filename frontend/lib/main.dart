@@ -3,22 +3,27 @@ import 'package:path/path.dart' as p;
 import 'package:path_provider/path_provider.dart';
 import 'package:search_jobs_backend/search_jobs_backend.dart';
 
-import 'ui/jobs_page.dart';
+import 'app_services.dart';
+import 'ui/app_shell.dart';
 
 Future<void> main() async {
   WidgetsFlutterBinding.ensureInitialized();
   final directory = await getApplicationSupportDirectory();
-  final repository = JobRepository(
-    database: JobDatabase.open(p.join(directory.path, 'jobs.db')),
-    sources: allSources,
+  final database = AppDatabase.open(p.join(directory.path, 'jobs.db'));
+  runApp(
+    SearchJobsApp(
+      services: AppServices(
+        database: database,
+        repository: JobRepository(database: database),
+      ),
+    ),
   );
-  runApp(SearchJobsApp(repository: repository));
 }
 
 class SearchJobsApp extends StatelessWidget {
-  const SearchJobsApp({super.key, required this.repository});
+  const SearchJobsApp({super.key, required this.services});
 
-  final JobRepository repository;
+  final AppServices services;
 
   static const _seedColor = Color(0xFF2F6FED);
 
@@ -32,7 +37,7 @@ class SearchJobsApp extends StatelessWidget {
         colorSchemeSeed: _seedColor,
         brightness: Brightness.dark,
       ),
-      home: JobsPage(repository: repository),
+      home: AppShell(services: services),
     );
   }
 }

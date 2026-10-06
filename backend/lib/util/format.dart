@@ -6,60 +6,40 @@ String plainText(String input) {
   return (html_parser.parseFragment(input).text ?? '').trim();
 }
 
+/// The job types offered as a filter, in display order.
+const jobTypeLabels = [
+  'Penuh waktu',
+  'Paruh waktu',
+  'Kontrak',
+  'Freelance',
+  'Magang',
+];
+
 const _jobTypes = {
   'full time': 'Penuh waktu',
+  'fulltime': 'Penuh waktu',
+  'permanent': 'Penuh waktu',
   'part time': 'Paruh waktu',
+  'parttime': 'Paruh waktu',
   'contract': 'Kontrak',
+  'contractor': 'Kontrak',
   'freelance': 'Freelance',
   'internship': 'Magang',
+  'intern': 'Magang',
   'temporary': 'Sementara',
 };
 
-/// Sources spell job types differently (`full_time`, `Full-Time`); this maps
-/// the known ones to one Indonesian label and leaves the rest as they are.
+/// Sources spell job types differently (`full_time`, `Full-Time`,
+/// `FullTime`); this maps the known ones to one Indonesian label and leaves
+/// the rest as they are.
 String jobTypeLabel(String raw) {
-  final key = raw.toLowerCase().replaceAll(RegExp(r'[_\-\s]+'), ' ').trim();
+  final key = raw
+      .replaceAllMapped(RegExp(r'([a-z])([A-Z])'), (m) => '${m[1]} ${m[2]}')
+      .toLowerCase()
+      .replaceAll(RegExp(r'[_\-\s]+'), ' ')
+      .trim();
   return _jobTypes[key] ?? raw.trim();
 }
-
-const _salaryPeriods = {
-  'annual': 'tahun',
-  'yearly': 'tahun',
-  'year': 'tahun',
-  'monthly': 'bulan',
-  'month': 'bulan',
-  'weekly': 'minggu',
-  'week': 'minggu',
-  'hourly': 'jam',
-  'hour': 'jam',
-};
-
-/// Formats a salary range like `USD 60.000 – 90.000 / tahun`. Sources send 0
-/// or null when a bound is unknown; returns an empty string when both are.
-String formatSalary(
-  num? min,
-  num? max, {
-  String currency = '',
-  String period = '',
-}) {
-  final low = (min ?? 0) > 0 ? min! : null;
-  final high = (max ?? 0) > 0 ? max! : null;
-  if (low == null && high == null) return '';
-  final amount = low != null && high != null && low != high
-      ? '${_thousands(low)} – ${_thousands(high)}'
-      : _thousands(low ?? high!);
-  final per = _salaryPeriods[period.toLowerCase().trim()];
-  return [
-    if (currency.isNotEmpty) currency,
-    amount,
-    if (per != null) '/ $per',
-  ].join(' ');
-}
-
-String _thousands(num value) => value.round().toString().replaceAllMapped(
-  RegExp(r'\B(?=(\d{3})+(?!\d))'),
-  (_) => '.',
-);
 
 final _hasTimeZone = RegExp(r'(Z|[+-]\d{2}:?\d{2})$');
 
@@ -107,6 +87,26 @@ const _monthsId = [
   'Jul', 'Agu', 'Sep', 'Okt', 'Nov', 'Des',
 ];
 
+/// A whole number with Indonesian thousands separators, such as `17.913`.
+String thousands(num value) => value.round().toString().replaceAllMapped(
+  RegExp(r'\B(?=(\d{3})+(?!\d))'),
+  (_) => '.',
+);
+
+/// A date such as `6 Okt 2026`, in local time.
+String shortDate(DateTime time) {
+  final local = time.toLocal();
+  return '${local.day} ${_monthsId[local.month - 1]} ${local.year}';
+}
+
+/// A date with time such as `6 Okt 2026 14.30`, in local time.
+String shortDateTime(DateTime time) {
+  final local = time.toLocal();
+  final hour = local.hour.toString().padLeft(2, '0');
+  final minute = local.minute.toString().padLeft(2, '0');
+  return '${shortDate(local)} $hour.$minute';
+}
+
 /// A short Indonesian "time ago" label, switching to a date after a month.
 String timeAgo(DateTime time, {DateTime? now}) {
   final elapsed = (now ?? DateTime.now()).difference(time);
@@ -114,6 +114,5 @@ String timeAgo(DateTime time, {DateTime? now}) {
   if (elapsed.inHours < 1) return '${elapsed.inMinutes} menit lalu';
   if (elapsed.inDays < 1) return '${elapsed.inHours} jam lalu';
   if (elapsed.inDays < 30) return '${elapsed.inDays} hari lalu';
-  final local = time.toLocal();
-  return '${local.day} ${_monthsId[local.month - 1]} ${local.year}';
+  return shortDate(time);
 }

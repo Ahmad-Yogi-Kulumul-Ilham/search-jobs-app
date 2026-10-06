@@ -1,4 +1,5 @@
 import '../models/job.dart';
+import '../models/salary.dart';
 import '../util/format.dart';
 import 'job_source.dart';
 
@@ -27,6 +28,7 @@ class RemotiveSource extends JobSource {
       final title = plainText(asText(item['title']));
       final url = asText(item['url']);
       if (sourceJobId.isEmpty || title.isEmpty || url.isEmpty) continue;
+      final salary = plainText(asText(item['salary']));
       jobs.add(
         Job(
           id: '$id:$sourceJobId',
@@ -38,7 +40,8 @@ class RemotiveSource extends JobSource {
           category: plainText(asText(item['category'])),
           tags: asTextList(item['tags']),
           jobType: jobTypeLabel(asText(item['job_type'])),
-          salary: plainText(asText(item['salary'])),
+          salary: salary,
+          salaryRange: parseSalaryText(salary),
           descriptionHtml: asText(item['description']),
           publishedAt: parseIsoUtc(asText(item['publication_date'])),
         ),

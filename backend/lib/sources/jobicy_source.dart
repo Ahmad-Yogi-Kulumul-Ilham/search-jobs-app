@@ -1,4 +1,5 @@
 import '../models/job.dart';
+import '../models/salary.dart';
 import '../util/format.dart';
 import 'job_source.dart';
 
@@ -25,6 +26,12 @@ class JobicySource extends JobSource {
       final url = asText(item['url']);
       if (sourceJobId.isEmpty || title.isEmpty || url.isEmpty) continue;
       final industries = asTextList(item['jobIndustry']).map(plainText);
+      final salary = SalaryRange.of(
+        asNum(item['salaryMin']),
+        asNum(item['salaryMax']),
+        currency: asText(item['salaryCurrency']),
+        period: SalaryPeriod.parse(asText(item['salaryPeriod'])),
+      );
       jobs.add(
         Job(
           id: '$id:$sourceJobId',
@@ -38,12 +45,8 @@ class JobicySource extends JobSource {
             if (asText(item['jobLevel']).isNotEmpty) asText(item['jobLevel']),
           ],
           jobType: asTextList(item['jobType']).map(jobTypeLabel).join(', '),
-          salary: formatSalary(
-            asNum(item['salaryMin']),
-            asNum(item['salaryMax']),
-            currency: asText(item['salaryCurrency']),
-            period: asText(item['salaryPeriod']),
-          ),
+          salary: salary?.label ?? '',
+          salaryRange: salary,
           descriptionHtml: asText(item['jobDescription']),
           publishedAt: parseIsoUtc(asText(item['pubDate'])),
         ),
