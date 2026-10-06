@@ -1,0 +1,15 @@
+# Dart and Flutter tooling
+.dart_tool/
+.packages
+build/
+.flutter-plugins
+.flutter-plugins-dependencies
+
+# Editors
+.idea/
+*.iml
+.vscode/
+
+# Local data
+*.db
+*.log

@@ -1,0 +1,7 @@
+name: search_jobs_backend
+description: Job sources, local storage, and search for the Search Jobs app.
+publish_to: none
+version: 0.1.0
+
+environment:
+  sdk: ^3.13.0
