@@ -36,6 +36,26 @@ class _JobsPageState extends State<JobsPage> {
     if (message != null) showMessage(context, message);
   }
 
+  void _applyAlert(JobAlert alert) {
+    _searchField.text = alert.filter.query;
+    _controller.setFilter(alert.filter);
+  }
+
+  Future<void> _saveAlert() async {
+    final filter = _controller.filter;
+    final name = await showDialog<String>(
+      context: context,
+      builder: (context) => _AlertNameDialog(filter: filter),
+    );
+    if (name == null || !mounted) return;
+    widget.services.database.alerts.add(name, filter);
+    widget.services.dataChanged();
+    showMessage(
+      context,
+      'Tersimpan. Anda akan diberi tahu saat ada lowongan baru yang cocok.',
+    );
+  }
+
   @override
   Widget build(BuildContext context) {
     return ListenableBuilder(
@@ -83,6 +103,14 @@ class _JobsPageState extends State<JobsPage> {
                   ),
                 ),
               ),
+              _SavedSearchMenu(
+                alerts: services.database.alerts.all(),
+                canSave:
+                    _controller.filter.query.trim().isNotEmpty ||
+                    _controller.filter.activeCount > 0,
+                onApply: _applyAlert,
+                onSave: _saveAlert,
+              ),
               if (services.refreshing)
                 const Padding(
                   padding: EdgeInsets.all(14),
@@ -105,7 +133,11 @@ class _JobsPageState extends State<JobsPage> {
           child: _FilterBar(
             filter: _controller.filter,
             sources: services.registry.active(),
-            onChanged: _controller.setFilter,
+            // The bar was built before the latest keystrokes reached the
+            // list, so keep the query the controller has now.
+            onChanged: (filter) => _controller.setFilter(
+              filter.copyWith(query: _controller.filter.query),
+            ),
           ),
         ),
         Padding(
@@ -158,6 +190,117 @@ class _JobsPageState extends State<JobsPage> {
       sourceName: widget.services.registry.nameOf(job.sourceId),
       rates: widget.services.rates,
       controller: _controller,
+    );
+  }
+}
+
+/// Saved searches: apply one, or save the current search as a new one.
+class _SavedSearchMenu extends StatelessWidget {
+  const _SavedSearchMenu({
+    required this.alerts,
+    required this.canSave,
+    required this.onApply,
+    required this.onSave,
+  });
+
+  final List<JobAlert> alerts;
+  final bool canSave;
+  final ValueChanged<JobAlert> onApply;
+  final VoidCallback onSave;
+
+  @override
+  Widget build(BuildContext context) {
+    return MenuAnchor(
+      menuChildren: [
+        for (final alert in alerts)
+          MenuItemButton(
+            leadingIcon: const Icon(Icons.notifications_none, size: 18),
+            onPressed: () => onApply(alert),
+            child: Text(alert.name),
+          ),
+        if (alerts.isNotEmpty) const Divider(height: 8),
+        MenuItemButton(
+          leadingIcon: const Icon(Icons.add_alert_outlined, size: 18),
+          onPressed: canSave ? onSave : null,
+          child: Text(
+            canSave
+                ? 'Simpan pencarian ini sebagai peringatan…'
+                : 'Isi pencarian atau filter dulu untuk menyimpannya',
+          ),
+        ),
+      ],
+      builder: (context, menu, _) => IconButton(
+        tooltip: 'Pencarian tersimpan',
+        icon: Icon(alerts.isEmpty ? Icons.bookmark_border : Icons.bookmark),
+        onPressed: () => menu.isOpen ? menu.close() : menu.open(),
+      ),
+    );
+  }
+}
+
+class _AlertNameDialog extends StatefulWidget {
+  const _AlertNameDialog({required this.filter});
+
+  final JobFilter filter;
+
+  @override
+  State<_AlertNameDialog> createState() => _AlertNameDialogState();
+}
+
+class _AlertNameDialogState extends State<_AlertNameDialog> {
+  late final _name = TextEditingController(
+    text: widget.filter.query.trim().isNotEmpty
+        ? widget.filter.query.trim()
+        : widget.filter.describe(),
+  );
+
+  @override
+  void dispose() {
+    _name.dispose();
+    super.dispose();
+  }
+
+  void _submit() {
+    final name = _name.text.trim();
+    if (name.isNotEmpty) Navigator.pop(context, name);
+  }
+
+  @override
+  Widget build(BuildContext context) {
+    return AlertDialog(
+      title: const Text('Simpan pencarian'),
+      content: SizedBox(
+        width: 420,
+        child: Column(
+          mainAxisSize: MainAxisSize.min,
+          crossAxisAlignment: CrossAxisAlignment.start,
+          children: [
+            Text('Filter: ${widget.filter.describe()}'),
+            const SizedBox(height: 6),
+            const Text(
+              'Setelah lowongan diperbarui, Anda akan diberi tahu jika ada '
+              'lowongan baru yang cocok.',
+            ),
+            const SizedBox(height: 14),
+            TextField(
+              controller: _name,
+              autofocus: true,
+              onSubmitted: (_) => _submit(),
+              decoration: const InputDecoration(
+                labelText: 'Nama',
+                border: OutlineInputBorder(),
+              ),
+            ),
+          ],
+        ),
+      ),
+      actions: [
+        TextButton(
+          onPressed: () => Navigator.pop(context),
+          child: const Text('Batal'),
+        ),
+        FilledButton(onPressed: _submit, child: const Text('Simpan')),
+      ],
     );
   }
 }

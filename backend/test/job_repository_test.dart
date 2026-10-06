@@ -379,7 +379,7 @@ void main() {
     // The schema as first released, with one job stored.
     final old = AppDatabase.inMemory();
     old.sql.execute('''
-      DROP TABLE applications; DROP TABLE blocked_companies;
+      DROP TABLE alerts; DROP TABLE applications; DROP TABLE blocked_companies;
       DROP TABLE source_settings; DROP TABLE custom_sources; DROP TABLE settings;
       DROP TABLE jobs; DROP TABLE source_state;
       CREATE TABLE jobs (

@@ -12,8 +12,13 @@ Aplikasi desktop Windows untuk mencari lowongan kerja remote dari beberapa situs
 - Perkiraan jam kerja dalam WIB untuk lowongan yang terbatas di wilayah tertentu.
 - Pelacak lamaran: Disimpan, Dilamar, Interview, Tawaran, Ditolak, lengkap dengan catatan dan jadwal interview. Lamaran dari situs lain bisa ditambahkan manual.
 - Sembunyikan lowongan dan blokir perusahaan.
+- Pencarian tersimpan: notifikasi desktop saat ada lowongan baru yang cocok.
+- Pengingat follow-up (7 hari tanpa kabar setelah melamar) dan interview dalam 24 jam, di aplikasi dan lewat notifikasi.
+- Peringatan lowongan mencurigakan: meminta bayaran, kontak hanya lewat Telegram/WhatsApp, pembayaran lewat kripto atau kartu hadiah, janji penghasilan besar, email rekrutmen pribadi, atau tanpa nama perusahaan.
 - Data tersimpan lokal (SQLite), jadi daftar terakhir tetap bisa dibuka tanpa internet.
-- Pembaruan otomatis saat aplikasi dibuka jika data sudah lebih dari 6 jam.
+- Pembaruan otomatis saat aplikasi dibuka dan setiap 30 menit selama terbuka, untuk sumber yang datanya sudah lebih dari 6 jam.
+
+Notifikasi Windows hanya muncul untuk aplikasi yang ada di Start menu, jadi saat pertama dijalankan aplikasi membuat pintasan "Pencari Kerja Remote" di Start menu.
 
 Label "Bisa dari Indonesia" dinilai dari lokasi yang tertulis di lowongan. Deskripsi lowongan bisa saja menambahkan syarat lain, jadi tetap periksa sebelum melamar.
 
@@ -67,6 +72,5 @@ Lowongan berasal dari API dan feed publik [Remote OK](https://remoteok.com), [Jo
 
 ## Rencana berikutnya
 
-1. Notifikasi lowongan baru, pengingat tindak lanjut, dan peringatan lowongan mencurigakan.
-2. Unggah CV dan review kecocokan dengan AI.
-3. Bantuan mengisi formulir lamaran.
+1. Unggah CV dan review kecocokan dengan AI.
+2. Bantuan mengisi formulir lamaran.

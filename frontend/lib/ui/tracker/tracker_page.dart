@@ -33,6 +33,7 @@ class TrackerPage extends StatelessWidget {
       listenable: services,
       builder: (context, _) {
         final applications = services.database.applications.all();
+        final reminders = services.reminders();
         return Column(
           crossAxisAlignment: CrossAxisAlignment.stretch,
           children: [
@@ -46,6 +47,8 @@ class TrackerPage extends StatelessWidget {
                 ),
               ],
             ),
+            if (reminders.isNotEmpty)
+              _ReminderPanel(reminders: reminders, services: services),
             Expanded(
               child: applications.isEmpty
                   ? const EmptyMessage(
@@ -77,6 +80,74 @@ class TrackerPage extends StatelessWidget {
           ],
         );
       },
+    );
+  }
+}
+
+/// Interviews coming up and applications waiting too long for news.
+class _ReminderPanel extends StatelessWidget {
+  const _ReminderPanel({required this.reminders, required this.services});
+
+  final List<Reminder> reminders;
+  final AppServices services;
+
+  @override
+  Widget build(BuildContext context) {
+    final theme = Theme.of(context);
+    final scheme = theme.colorScheme;
+    return Container(
+      margin: const EdgeInsets.fromLTRB(20, 0, 20, 12),
+      padding: const EdgeInsets.fromLTRB(16, 10, 8, 6),
+      decoration: BoxDecoration(
+        color: scheme.secondaryContainer,
+        borderRadius: BorderRadius.circular(12),
+      ),
+      child: Column(
+        crossAxisAlignment: CrossAxisAlignment.stretch,
+        children: [
+          Text('Perlu ditindaklanjuti', style: theme.textTheme.titleSmall),
+          for (final reminder in reminders)
+            Row(
+              children: [
+                Icon(
+                  reminder.kind == ReminderKind.interview
+                      ? Icons.event
+                      : Icons.mark_email_unread_outlined,
+                  size: 18,
+                ),
+                const SizedBox(width: 10),
+                Expanded(
+                  child: Text(
+                    '${reminder.application.title}'
+                    '${reminder.application.company.isEmpty ? '' : ' · ${reminder.application.company}'}'
+                    ' — ${reminder.message}',
+                  ),
+                ),
+                if (reminder.kind == ReminderKind.followUp)
+                  TextButton(
+                    onPressed: () {
+                      services.database.applications.markFollowedUp(
+                        reminder.application.jobId,
+                        now: services.now(),
+                      );
+                      services.dataChanged();
+                    },
+                    child: const Text('Sudah follow-up'),
+                  ),
+                TextButton(
+                  onPressed: () => showDialog<void>(
+                    context: context,
+                    builder: (context) => ApplicationDialog(
+                      application: reminder.application,
+                      services: services,
+                    ),
+                  ),
+                  child: const Text('Buka'),
+                ),
+              ],
+            ),
+        ],
+      ),
     );
   }
 }

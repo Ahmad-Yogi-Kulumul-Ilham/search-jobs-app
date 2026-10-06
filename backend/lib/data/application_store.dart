@@ -28,8 +28,8 @@ class ApplicationStore {
     '''
     INSERT INTO applications (
       job_id, status, title, company, url, source_id, location, notes,
-      created_at, applied_at, interview_at, updated_at
-    ) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)
+      created_at, applied_at, interview_at, followed_up_at, updated_at
+    ) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)
     ON CONFLICT (job_id) DO UPDATE SET
       status = excluded.status,
       title = excluded.title,
@@ -38,6 +38,7 @@ class ApplicationStore {
       notes = excluded.notes,
       applied_at = excluded.applied_at,
       interview_at = excluded.interview_at,
+      followed_up_at = excluded.followed_up_at,
       updated_at = excluded.updated_at
     ''',
     [
@@ -52,9 +53,20 @@ class ApplicationStore {
       application.createdAt.millisecondsSinceEpoch,
       application.appliedAt?.millisecondsSinceEpoch,
       application.interviewAt?.millisecondsSinceEpoch,
+      application.followedUpAt?.millisecondsSinceEpoch,
       application.updatedAt.millisecondsSinceEpoch,
     ],
   );
+
+  /// Records that the user chased the company for news, which restarts the
+  /// follow-up reminder.
+  Application? markFollowedUp(String jobId, {required DateTime now}) {
+    final existing = find(jobId);
+    if (existing == null) return null;
+    final updated = existing.copyWith(followedUpAt: now, updatedAt: now);
+    save(updated);
+    return updated;
+  }
 
   void delete(String jobId) =>
       _db.execute('DELETE FROM applications WHERE job_id = ?', [jobId]);
@@ -147,6 +159,7 @@ Application _fromRow(Row row) {
     createdAt: time('created_at')!,
     appliedAt: time('applied_at'),
     interviewAt: time('interview_at'),
+    followedUpAt: time('followed_up_at'),
     updatedAt: time('updated_at')!,
   );
 }

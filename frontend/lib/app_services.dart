@@ -1,15 +1,29 @@
 import 'package:flutter/foundation.dart';
 import 'package:search_jobs_backend/search_jobs_backend.dart';
 
+import 'notifier.dart';
+
 /// The backend objects every page shares. It notifies its listeners whenever
 /// stored data changes, so each page can reload what it shows.
 class AppServices extends ChangeNotifier {
-  AppServices({required this.database, required this.repository}) {
+  AppServices({
+    required this.database,
+    required this.repository,
+    Notifier? notifier,
+    DateTime Function()? clock,
+  }) : notifier = notifier ?? RecordingNotifier(),
+       _clock = clock ?? DateTime.now,
+       announcer = Announcer(database) {
     rates = repository.exchangeRates();
   }
 
+  static const _notificationsKey = 'notifications_enabled';
+
   final AppDatabase database;
   final JobRepository repository;
+  final Notifier notifier;
+  final Announcer announcer;
+  final DateTime Function() _clock;
 
   bool refreshing = false;
 
@@ -18,21 +32,53 @@ class AppServices extends ChangeNotifier {
 
   SourceRegistry get registry => repository.registry;
 
+  DateTime now() => _clock();
+
+  bool get notificationsEnabled =>
+      database.settings.get(_notificationsKey) != 'false';
+
+  set notificationsEnabled(bool enabled) {
+    database.settings.set(_notificationsKey, '$enabled');
+    notifyListeners();
+  }
+
+  /// Reminders that need attention now, for the tracker and its badge.
+  List<Reminder> reminders() =>
+      dueReminders(database.applications.all(), now());
+
   /// Call after writing to the database.
   void dataChanged() {
     rates = repository.exchangeRates();
     notifyListeners();
   }
 
+  /// Fetches due sources, then announces new jobs that match saved searches.
   Future<RefreshResult> refresh({required bool manual}) async {
     if (refreshing) return const RefreshResult();
     refreshing = true;
     notifyListeners();
     try {
-      return await repository.refresh(manual: manual);
+      final result = await repository.refresh(manual: manual);
+      await _announce(
+        announcer.forNewJobs(
+          result.newJobIds,
+          excludedSources: registry.disabledIds(),
+        ),
+      );
+      return result;
     } finally {
       refreshing = false;
       dataChanged();
+    }
+  }
+
+  /// Announces reminders that became due since the last check.
+  Future<void> checkReminders() => _announce(announcer.forReminders(now()));
+
+  Future<void> _announce(List<Announcement> announcements) async {
+    if (!notificationsEnabled) return;
+    for (final announcement in announcements) {
+      await notifier.show(announcement);
     }
   }
 }

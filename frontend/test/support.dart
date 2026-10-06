@@ -4,6 +4,7 @@ import 'package:http/http.dart' as http;
 import 'package:http/testing.dart';
 import 'package:search_jobs_app/app_services.dart';
 import 'package:search_jobs_app/main.dart';
+import 'package:search_jobs_app/notifier.dart';
 import 'package:search_jobs_backend/search_jobs_backend.dart';
 
 const ratesBody =
@@ -19,6 +20,7 @@ AppServices testServices(
   WidgetTester tester, {
   List<Job> jobs = const [],
   http.Response? Function(http.Request request)? onRequest,
+  Notifier? notifier,
 }) {
   final database = AppDatabase.inMemory();
   addTearDown(database.close);
@@ -29,6 +31,7 @@ AppServices testServices(
   database.jobs.saveFetch('remoteok', jobs, now);
   return AppServices(
     database: database,
+    notifier: notifier,
     repository: JobRepository(
       database: database,
       client: MockClient((request) async {

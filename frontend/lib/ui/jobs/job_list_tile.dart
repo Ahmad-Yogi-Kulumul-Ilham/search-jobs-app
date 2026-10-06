@@ -51,6 +51,19 @@ class JobListTile extends StatelessWidget {
                     const SizedBox(height: 2),
                     Row(
                       children: [
+                        if (job.warnings.isNotEmpty)
+                          Padding(
+                            padding: const EdgeInsets.only(right: 4),
+                            child: Tooltip(
+                              message:
+                                  'Perlu dicek: ${job.warnings.join('; ')}',
+                              child: Icon(
+                                Icons.warning_amber_rounded,
+                                size: 15,
+                                color: scheme.error,
+                              ),
+                            ),
+                          ),
                         if (job.regionFit == RegionFit.open)
                           const Padding(
                             padding: EdgeInsets.only(right: 4),

@@ -1,6 +1,10 @@
+import 'dart:convert';
+
 import 'package:sqlite3/sqlite3.dart';
 
+import '../models/job.dart';
 import '../util/region.dart';
+import 'alert_store.dart';
 import 'application_store.dart';
 import 'job_store.dart';
 import 'settings_store.dart';
@@ -24,6 +28,7 @@ class AppDatabase {
   late final ApplicationStore applications = ApplicationStore(sql);
   late final SourceStore sources = SourceStore(sql);
   late final SettingsStore settings = SettingsStore(sql);
+  late final AlertStore alerts = AlertStore(sql);
 
   void close() => sql.close();
 
@@ -114,5 +119,35 @@ final List<void Function(Database)> _migrations = [
     }
     // Stored jobs predate the salary columns; fetching again fills them in.
     sql.execute('DELETE FROM source_state');
+  },
+  (sql) {
+    sql.execute('''
+      ALTER TABLE jobs ADD COLUMN scam_flags TEXT NOT NULL DEFAULT '[]';
+      ALTER TABLE applications ADD COLUMN followed_up_at INTEGER;
+      CREATE TABLE alerts (
+        id INTEGER PRIMARY KEY AUTOINCREMENT,
+        name TEXT NOT NULL,
+        filter TEXT NOT NULL
+      );
+    ''');
+    final rows = sql.select(
+      'SELECT id, title, company, description_html FROM jobs',
+    );
+    for (final row in rows) {
+      final warnings = warningsFor(
+        Job(
+          id: row['id'] as String,
+          sourceId: '',
+          title: row['title'] as String,
+          company: row['company'] as String,
+          url: '',
+          descriptionHtml: row['description_html'] as String,
+        ),
+      );
+      sql.execute('UPDATE jobs SET scam_flags = ? WHERE id = ?', [
+        jsonEncode(warnings),
+        row['id'],
+      ]);
+    }
   },
 ];

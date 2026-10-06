@@ -37,6 +37,7 @@ class Application {
     this.notes = '',
     this.appliedAt,
     this.interviewAt,
+    this.followedUpAt,
   });
 
   /// Source id of applications the user typed in rather than picked from a
@@ -57,10 +58,20 @@ class Application {
   final DateTime? appliedAt;
   final DateTime? interviewAt;
 
+  /// When the user last chased the company for news.
+  final DateTime? followedUpAt;
+
   /// Last time the status or details changed.
   final DateTime updatedAt;
 
   bool get isManual => sourceId == manualSourceId;
+
+  /// The later of applying and the last follow-up, or null before applying.
+  DateTime? get lastContactAt {
+    final applied = appliedAt, followedUp = followedUpAt;
+    if (applied == null || followedUp == null) return applied ?? followedUp;
+    return followedUp.isAfter(applied) ? followedUp : applied;
+  }
 
   Application copyWith({
     ApplicationStatus? status,
@@ -70,6 +81,7 @@ class Application {
     String? notes,
     DateTime? appliedAt,
     DateTime? Function()? interviewAt,
+    DateTime? followedUpAt,
     DateTime? updatedAt,
   }) => Application(
     jobId: jobId,
@@ -83,6 +95,7 @@ class Application {
     createdAt: createdAt,
     appliedAt: appliedAt ?? this.appliedAt,
     interviewAt: interviewAt == null ? this.interviewAt : interviewAt(),
+    followedUpAt: followedUpAt ?? this.followedUpAt,
     updatedAt: updatedAt ?? this.updatedAt,
   );
 }

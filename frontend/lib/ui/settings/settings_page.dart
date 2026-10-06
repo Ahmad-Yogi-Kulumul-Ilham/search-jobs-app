@@ -20,6 +20,7 @@ class SettingsPage extends StatelessWidget {
         final blocked = jobs.blockedCompanies();
         final rates = services.rates;
         final rupiah = rates?.convert(1, from: 'USD', to: 'IDR');
+        final alerts = services.database.alerts.all();
         return Column(
           crossAxisAlignment: CrossAxisAlignment.stretch,
           children: [
@@ -28,6 +29,43 @@ class SettingsPage extends StatelessWidget {
               child: ListView(
                 padding: const EdgeInsets.fromLTRB(24, 0, 24, 24),
                 children: [
+                  const SectionTitle('Notifikasi'),
+                  SwitchListTile(
+                    contentPadding: EdgeInsets.zero,
+                    title: const Text('Notifikasi desktop'),
+                    subtitle: const Text(
+                      'Lowongan baru yang cocok dengan pencarian tersimpan, '
+                      'pengingat follow-up, dan interview dalam 24 jam. '
+                      'Aplikasi memeriksa setiap 30 menit selama terbuka.',
+                    ),
+                    value: services.notificationsEnabled,
+                    onChanged: (enabled) =>
+                        services.notificationsEnabled = enabled,
+                  ),
+                  const SectionTitle('Pencarian tersimpan'),
+                  if (alerts.isEmpty)
+                    const Padding(
+                      padding: EdgeInsets.symmetric(vertical: 8),
+                      child: Text(
+                        'Belum ada. Di halaman Lowongan, atur pencarian dan '
+                        'filter, lalu pilih ikon penanda untuk menyimpannya.',
+                      ),
+                    ),
+                  for (final alert in alerts)
+                    ListTile(
+                      contentPadding: EdgeInsets.zero,
+                      leading: const Icon(Icons.notifications_none),
+                      title: Text(alert.name),
+                      subtitle: Text(alert.filter.describe()),
+                      trailing: IconButton(
+                        tooltip: 'Hapus pencarian tersimpan',
+                        icon: const Icon(Icons.delete_outline),
+                        onPressed: () {
+                          services.database.alerts.delete(alert.id);
+                          services.dataChanged();
+                        },
+                      ),
+                    ),
                   const SectionTitle('Lowongan tersembunyi'),
                   ListTile(
                     contentPadding: EdgeInsets.zero,

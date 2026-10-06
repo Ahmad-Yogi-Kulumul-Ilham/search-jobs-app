@@ -58,6 +58,10 @@ class JobDetailView extends StatelessWidget {
             child: Column(
               crossAxisAlignment: CrossAxisAlignment.start,
               children: [
+                if (job.warnings.isNotEmpty) ...[
+                  _WarningBanner(job.warnings),
+                  const SizedBox(height: 16),
+                ],
                 Text(job.title, style: theme.textTheme.headlineSmall),
                 if (job.company.isNotEmpty) ...[
                   const SizedBox(height: 4),
@@ -242,6 +246,58 @@ class _MoreMenu extends StatelessWidget {
         tooltip: 'Lainnya',
         icon: const Icon(Icons.more_vert),
         onPressed: () => menu.isOpen ? menu.close() : menu.open(),
+      ),
+    );
+  }
+}
+
+/// Lists the signs that this posting could be a fake offer.
+class _WarningBanner extends StatelessWidget {
+  const _WarningBanner(this.warnings);
+
+  final List<String> warnings;
+
+  @override
+  Widget build(BuildContext context) {
+    final theme = Theme.of(context);
+    final scheme = theme.colorScheme;
+    return Container(
+      padding: const EdgeInsets.all(14),
+      decoration: BoxDecoration(
+        color: scheme.errorContainer,
+        borderRadius: BorderRadius.circular(10),
+      ),
+      child: Row(
+        crossAxisAlignment: CrossAxisAlignment.start,
+        children: [
+          Icon(Icons.warning_amber_rounded, color: scheme.onErrorContainer),
+          const SizedBox(width: 12),
+          Expanded(
+            child: DefaultTextStyle.merge(
+              style: TextStyle(color: scheme.onErrorContainer),
+              child: Column(
+                crossAxisAlignment: CrossAxisAlignment.start,
+                children: [
+                  Text(
+                    'Lowongan ini perlu dicek dengan teliti',
+                    style: theme.textTheme.titleSmall?.copyWith(
+                      color: scheme.onErrorContainer,
+                    ),
+                  ),
+                  const SizedBox(height: 4),
+                  for (final warning in warnings) Text('• $warning'),
+                  const SizedBox(height: 6),
+                  const Text(
+                    'Ciri-ciri ini sering ada di lowongan palsu, meski bisa '
+                    'juga muncul di lowongan asli. Jangan pernah membayar '
+                    'untuk melamar kerja, dan pastikan perusahaannya punya '
+                    'situs resmi.',
+                  ),
+                ],
+              ),
+            ),
+          ),
+        ],
       ),
     );
   }

@@ -5,7 +5,9 @@ import 'package:sqlite3/sqlite3.dart';
 import '../models/application.dart';
 import '../models/job.dart';
 import '../models/salary.dart';
+import '../util/format.dart';
 import '../util/region.dart';
+import '../util/scam_check.dart';
 
 /// What the job list is narrowed to.
 class JobFilter {
@@ -49,6 +51,37 @@ class JobFilter {
     jobTypes: jobTypes ?? this.jobTypes,
     withSalaryOnly: withSalaryOnly ?? this.withSalaryOnly,
   );
+
+  factory JobFilter.fromJson(Map<String, Object?> json) {
+    Set<String> strings(Object? value) => {
+      for (final item in value is List ? value : const []) '$item',
+    };
+    return JobFilter(
+      query: json['query'] as String? ?? '',
+      excludedSources: strings(json['excludedSources']),
+      openToIndonesiaOnly: json['openToIndonesiaOnly'] == true,
+      jobTypes: strings(json['jobTypes']),
+      withSalaryOnly: json['withSalaryOnly'] == true,
+    );
+  }
+
+  Map<String, Object?> toJson() => {
+    'query': query,
+    'excludedSources': excludedSources.toList(),
+    'openToIndonesiaOnly': openToIndonesiaOnly,
+    'jobTypes': jobTypes.toList(),
+    'withSalaryOnly': withSalaryOnly,
+  };
+
+  /// A short Indonesian summary such as `"flutter" · bisa dari Indonesia`.
+  String describe() => [
+    if (query.trim().isNotEmpty) '"${query.trim()}"',
+    if (openToIndonesiaOnly) 'bisa dari Indonesia',
+    if (withSalaryOnly) 'ada gaji',
+    if (jobTypes.isNotEmpty) jobTypes.join('/'),
+    if (excludedSources.isNotEmpty)
+      '${excludedSources.length} sumber dimatikan',
+  ].join(' · ');
 }
 
 /// Fetched jobs, plus the user's choices about which ones to keep seeing.
@@ -80,9 +113,9 @@ class JobStore {
           INSERT INTO jobs (
             id, source_id, title, company, url, location, category, tags,
             job_type, salary, salary_min, salary_max, salary_currency,
-            salary_period, region_fit, description_html, published_at,
-            first_seen_at, last_seen_at
-          ) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)
+            salary_period, region_fit, scam_flags, description_html,
+            published_at, first_seen_at, last_seen_at
+          ) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)
           ON CONFLICT (id) DO UPDATE SET
             title = excluded.title,
             company = excluded.company,
@@ -97,6 +130,7 @@ class JobStore {
             salary_currency = excluded.salary_currency,
             salary_period = excluded.salary_period,
             region_fit = excluded.region_fit,
+            scam_flags = excluded.scam_flags,
             description_html = excluded.description_html,
             published_at = excluded.published_at,
             last_seen_at = excluded.last_seen_at
@@ -117,6 +151,7 @@ class JobStore {
             salary?.currency,
             salary?.period?.name,
             job.regionFit.name,
+            jsonEncode(warningsFor(job)),
             job.descriptionHtml,
             job.publishedAt?.millisecondsSinceEpoch,
             now,
@@ -191,12 +226,23 @@ class JobStore {
 
   /// Jobs matching [filter], newest first, without their descriptions (see
   /// [descriptionOf]). Hidden jobs and blocked companies never appear.
-  List<Job> search({JobFilter filter = const JobFilter(), int limit = 500}) {
+  /// When [onlyIds] is given, only those jobs are considered.
+  List<Job> search({
+    JobFilter filter = const JobFilter(),
+    Iterable<String>? onlyIds,
+    int limit = 500,
+  }) {
     final conditions = <String>[
       'j.hidden = 0',
       'lower(j.company) NOT IN (SELECT name FROM blocked_companies)',
     ];
     final args = <Object?>[];
+    if (onlyIds != null) {
+      final ids = onlyIds.toList();
+      if (ids.isEmpty) return const [];
+      conditions.add('j.id IN (SELECT value FROM json_each(?))');
+      args.add(jsonEncode(ids));
+    }
     final words = filter.query.trim().split(RegExp(r'\s+'));
     for (final word in words.where((word) => word.isNotEmpty)) {
       conditions.add(
@@ -289,9 +335,16 @@ const _searchedColumns = ['title', 'company', 'location', 'category', 'tags'];
 const _listColumns = '''
   j.id, j.source_id, j.title, j.company, j.url, j.location, j.category,
   j.tags, j.job_type, j.salary, j.salary_min, j.salary_max,
-  j.salary_currency, j.salary_period, j.published_at,
+  j.salary_currency, j.salary_period, j.published_at, j.scam_flags,
   a.status AS tracked_status
 ''';
+
+/// Scam warnings for a job about to be stored, read from its description.
+List<String> warningsFor(Job job) => scamWarnings(
+  title: job.title,
+  company: job.company,
+  descriptionText: plainText(job.descriptionHtml),
+);
 
 String _contains(String word) {
   final escaped = word.replaceAllMapped(
@@ -325,5 +378,6 @@ Job _jobFromRow(Row row) {
         ? null
         : DateTime.fromMillisecondsSinceEpoch(publishedAt),
     trackedStatus: ApplicationStatus.byName(row['tracked_status'] as String?),
+    warnings: (jsonDecode(row['scam_flags'] as String) as List).cast<String>(),
   );
 }

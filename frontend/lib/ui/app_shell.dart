@@ -1,3 +1,5 @@
+import 'dart:async';
+
 import 'package:flutter/material.dart';
 
 import '../app_services.dart';
@@ -13,21 +15,35 @@ class AppShell extends StatefulWidget {
 
   final AppServices services;
 
+  /// How often the app looks for due refreshes and reminders while open.
+  static const checkEvery = Duration(minutes: 30);
+
   @override
   State<AppShell> createState() => _AppShellState();
 }
 
 class _AppShellState extends State<AppShell> {
   int _index = 0;
+  Timer? _timer;
 
   @override
   void initState() {
     super.initState();
-    _refreshOnStart();
+    _check();
+    _timer = Timer.periodic(AppShell.checkEvery, (_) => _check());
   }
 
-  Future<void> _refreshOnStart() async {
+  @override
+  void dispose() {
+    _timer?.cancel();
+    super.dispose();
+  }
+
+  /// An automatic refresh only fetches sources whose data is old enough, so
+  /// running it often is cheap.
+  Future<void> _check() async {
     final result = await widget.services.refresh(manual: false);
+    await widget.services.checkReminders();
     if (!mounted) return;
     final message = refreshMessage(result, manual: false);
     if (message != null) showMessage(context, message);
@@ -39,31 +55,46 @@ class _AppShellState extends State<AppShell> {
     return Scaffold(
       body: Row(
         children: [
-          NavigationRail(
-            selectedIndex: _index,
-            onDestinationSelected: (index) => setState(() => _index = index),
-            labelType: NavigationRailLabelType.all,
-            destinations: const [
-              NavigationRailDestination(
-                icon: Icon(Icons.work_outline),
-                selectedIcon: Icon(Icons.work),
-                label: Text('Lowongan'),
-              ),
-              NavigationRailDestination(
-                icon: Icon(Icons.fact_check_outlined),
-                selectedIcon: Icon(Icons.fact_check),
-                label: Text('Lamaran'),
-              ),
-              NavigationRailDestination(
-                icon: Icon(Icons.rss_feed),
-                label: Text('Sumber'),
-              ),
-              NavigationRailDestination(
-                icon: Icon(Icons.settings_outlined),
-                selectedIcon: Icon(Icons.settings),
-                label: Text('Pengaturan'),
-              ),
-            ],
+          ListenableBuilder(
+            listenable: services,
+            builder: (context, _) {
+              final due = services.reminders().length;
+              return NavigationRail(
+                selectedIndex: _index,
+                onDestinationSelected: (index) =>
+                    setState(() => _index = index),
+                labelType: NavigationRailLabelType.all,
+                destinations: [
+                  const NavigationRailDestination(
+                    icon: Icon(Icons.work_outline),
+                    selectedIcon: Icon(Icons.work),
+                    label: Text('Lowongan'),
+                  ),
+                  NavigationRailDestination(
+                    icon: Badge(
+                      isLabelVisible: due > 0,
+                      label: Text('$due'),
+                      child: const Icon(Icons.fact_check_outlined),
+                    ),
+                    selectedIcon: Badge(
+                      isLabelVisible: due > 0,
+                      label: Text('$due'),
+                      child: const Icon(Icons.fact_check),
+                    ),
+                    label: const Text('Lamaran'),
+                  ),
+                  const NavigationRailDestination(
+                    icon: Icon(Icons.rss_feed),
+                    label: Text('Sumber'),
+                  ),
+                  const NavigationRailDestination(
+                    icon: Icon(Icons.settings_outlined),
+                    selectedIcon: Icon(Icons.settings),
+                    label: Text('Pengaturan'),
+                  ),
+                ],
+              );
+            },
           ),
           const VerticalDivider(width: 1),
           Expanded(

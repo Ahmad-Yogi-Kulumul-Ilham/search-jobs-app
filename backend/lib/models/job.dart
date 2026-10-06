@@ -19,6 +19,7 @@ class Job {
     this.descriptionHtml = '',
     this.publishedAt,
     this.trackedStatus,
+    this.warnings = const [],
   });
 
   /// Unique across sources: `<sourceId>:<id given by the source>`.
@@ -47,6 +48,10 @@ class Job {
   /// Where the user's application for this job stands, or null when the job
   /// is not in the tracker. Set only on jobs read from the database.
   final ApplicationStatus? trackedStatus;
+
+  /// Signs this could be a fake offer (see `scamWarnings`). Filled in when
+  /// the job is stored, so only jobs read from the database carry them.
+  final List<String> warnings;
 
   RegionFit get regionFit => classifyRegion(location);
 }

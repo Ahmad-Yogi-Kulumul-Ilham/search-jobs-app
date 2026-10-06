@@ -4,17 +4,21 @@ import 'package:path_provider/path_provider.dart';
 import 'package:search_jobs_backend/search_jobs_backend.dart';
 
 import 'app_services.dart';
+import 'notifier.dart';
 import 'ui/app_shell.dart';
 
 Future<void> main() async {
   WidgetsFlutterBinding.ensureInitialized();
   final directory = await getApplicationSupportDirectory();
   final database = AppDatabase.open(p.join(directory.path, 'jobs.db'));
+  final notifier = DesktopNotifier();
+  await notifier.initialize();
   runApp(
     SearchJobsApp(
       services: AppServices(
         database: database,
         repository: JobRepository(database: database),
+        notifier: notifier,
       ),
     ),
   );
