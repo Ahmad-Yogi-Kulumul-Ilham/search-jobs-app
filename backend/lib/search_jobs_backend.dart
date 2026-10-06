@@ -14,6 +14,8 @@ export 'data/job_repository.dart';
 export 'data/job_store.dart';
 export 'data/settings_store.dart';
 export 'data/source_store.dart';
+export 'form_fill/form_filler.dart';
+export 'models/applicant_profile.dart';
 export 'models/application.dart';
 export 'models/custom_source.dart';
 export 'models/cv.dart';

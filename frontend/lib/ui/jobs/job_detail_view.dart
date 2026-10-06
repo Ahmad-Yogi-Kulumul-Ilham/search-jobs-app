@@ -3,6 +3,7 @@ import 'package:flutter_widget_from_html_core/flutter_widget_from_html_core.dart
 import 'package:search_jobs_backend/search_jobs_backend.dart';
 
 import '../../app_services.dart';
+import '../apply/apply_page.dart';
 import '../common.dart';
 import 'jobs_controller.dart';
 import 'review_panel.dart';
@@ -130,6 +131,17 @@ class JobDetailView extends StatelessWidget {
                       icon: const Icon(Icons.open_in_new, size: 18),
                       label: Text('Lamar di $sourceName'),
                       onPressed: () => _apply(context),
+                    ),
+                    FilledButton.tonalIcon(
+                      icon: const Icon(Icons.auto_fix_high, size: 18),
+                      label: const Text('Isi formulir di aplikasi'),
+                      onPressed: () => Navigator.push(
+                        context,
+                        MaterialPageRoute<void>(
+                          builder: (context) =>
+                              ApplyPage(services: services, job: job),
+                        ),
+                      ),
                     ),
                     _TrackingButton(job: job, controller: controller),
                     _MoreMenu(job: job, controller: controller),

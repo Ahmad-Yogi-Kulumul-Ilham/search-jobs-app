@@ -4,6 +4,7 @@ import 'package:search_jobs_backend/search_jobs_backend.dart';
 
 import '../../app_services.dart';
 import '../common.dart';
+import 'profile_dialog.dart';
 
 /// The user's CV versions and their bank of saved answers.
 class CvPage extends StatelessWidget {
@@ -84,6 +85,8 @@ class CvPage extends StatelessWidget {
               child: ListView(
                 padding: const EdgeInsets.fromLTRB(24, 0, 24, 24),
                 children: [
+                  const SectionTitle('Data pelamar'),
+                  _ProfileSummary(services: services),
                   const SectionTitle('Versi CV'),
                   if (cvs.isEmpty)
                     const Padding(
@@ -178,6 +181,36 @@ class CvPage extends StatelessWidget {
           ],
         );
       },
+    );
+  }
+}
+
+class _ProfileSummary extends StatelessWidget {
+  const _ProfileSummary({required this.services});
+
+  final AppServices services;
+
+  @override
+  Widget build(BuildContext context) {
+    final profile = services.applicantProfile;
+    return ListTile(
+      contentPadding: EdgeInsets.zero,
+      leading: const Icon(Icons.person_outline),
+      title: Text(profile.isEmpty ? 'Belum diisi' : profile.fullName),
+      subtitle: Text(
+        profile.isEmpty
+            ? 'Nama, email, telepon, dan LinkedIn untuk mengisi formulir '
+                  'lamaran otomatis.'
+            : [
+                profile.email,
+                profile.phone,
+                profile.location,
+              ].where((part) => part.isNotEmpty).join(' · '),
+      ),
+      trailing: TextButton(
+        onPressed: () => editApplicantProfile(context, services),
+        child: Text(profile.isEmpty ? 'Isi' : 'Ubah'),
+      ),
     );
   }
 }

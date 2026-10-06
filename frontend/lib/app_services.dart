@@ -3,6 +3,7 @@ import 'package:http/http.dart' as http;
 import 'package:search_jobs_backend/search_jobs_backend.dart';
 
 import 'file_picking.dart';
+import 'form_browser.dart';
 import 'notifier.dart';
 import 'secret_box.dart';
 
@@ -16,6 +17,7 @@ class AppServices extends ChangeNotifier {
     SecretBox? secretBox,
     this.aiHttpClient,
     this.chooseCvFile = pickCvFile,
+    this.createBrowser = WebviewFormBrowser.new,
     DateTime Function()? clock,
   }) : notifier = notifier ?? RecordingNotifier(),
        secretBox = secretBox ?? PlainSecretBox(),
@@ -40,6 +42,23 @@ class AppServices extends ChangeNotifier {
 
   /// Asks the user for a CV file.
   final Future<PickedFile?> Function() chooseCvFile;
+
+  /// Makes the in-app browser for application forms.
+  final FormBrowser Function() createBrowser;
+
+  static const _profileKey = 'applicant_profile';
+
+  ApplicantProfile get applicantProfile {
+    final json = database.settings.getJson(_profileKey);
+    return json is Map<String, Object?>
+        ? ApplicantProfile.fromJson(json)
+        : const ApplicantProfile();
+  }
+
+  set applicantProfile(ApplicantProfile profile) {
+    database.settings.setJson(_profileKey, profile.toJson());
+    notifyListeners();
+  }
 
   bool refreshing = false;
 

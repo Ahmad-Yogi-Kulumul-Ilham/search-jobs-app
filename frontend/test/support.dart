@@ -1,9 +1,12 @@
+import 'dart:async';
+
 import 'package:flutter/material.dart';
 import 'package:flutter_test/flutter_test.dart';
 import 'package:http/http.dart' as http;
 import 'package:http/testing.dart';
 import 'package:search_jobs_app/app_services.dart';
 import 'package:search_jobs_app/file_picking.dart';
+import 'package:search_jobs_app/form_browser.dart';
 import 'package:search_jobs_app/main.dart';
 import 'package:search_jobs_app/notifier.dart';
 import 'package:search_jobs_backend/search_jobs_backend.dart';
@@ -24,6 +27,7 @@ AppServices testServices(
   Notifier? notifier,
   Future<http.Response> Function(http.Request request)? onClaude,
   Future<PickedFile?> Function()? chooseCvFile,
+  FormBrowser Function()? createBrowser,
 }) {
   final database = AppDatabase.inMemory();
   addTearDown(database.close);
@@ -39,6 +43,7 @@ AppServices testServices(
       onClaude ?? (request) async => fail('unexpected Claude request'),
     ),
     chooseCvFile: chooseCvFile ?? () async => null,
+    createBrowser: createBrowser ?? FakeFormBrowser.new,
     repository: JobRepository(
       database: database,
       client: MockClient((request) async {
@@ -59,6 +64,63 @@ Future<void> pumpApp(WidgetTester tester, AppServices services) async {
   addTearDown(tester.view.reset);
   await tester.pumpWidget(SearchJobsApp(services: services));
   await tester.pumpAndSettle();
+}
+
+/// Stands in for the in-app browser. Fill scripts get [fillResult]; answer
+/// scripts report that the field was found.
+class FakeFormBrowser implements FormBrowser {
+  FakeFormBrowser({this.fillResult, this.failToStart = false});
+
+  final Object? fillResult;
+  final bool failToStart;
+  final opened = <String>[];
+  final scripts = <String>[];
+  final _url = StreamController<String>.broadcast();
+  final _loading = StreamController<bool>.broadcast();
+
+  @override
+  Future<void> initialize() async {
+    if (failToStart) throw Exception('WebView2 missing');
+  }
+
+  @override
+  Future<void> open(String url) async {
+    opened.add(url);
+    _url.add(url);
+  }
+
+  @override
+  Future<Object?> run(String script) async {
+    scripts.add(script);
+    return script.contains('data-sja-question="') &&
+            !script.contains('const data')
+        ? true
+        : fillResult;
+  }
+
+  @override
+  Future<void> back() async {}
+
+  @override
+  Future<void> reload() async {}
+
+  @override
+  Stream<String> get url => _url.stream;
+
+  @override
+  Stream<bool> get loading => _loading.stream;
+
+  @override
+  Widget view() => const ColoredBox(
+    color: Color(0xFFEEEEEE),
+    child: Center(child: Text('BROWSER')),
+  );
+
+  @override
+  Future<void> dispose() async {
+    await _url.close();
+    await _loading.close();
+  }
 }
 
 /// Switches to the page named [label] in the navigation rail.

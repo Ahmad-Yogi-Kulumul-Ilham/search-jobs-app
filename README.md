@@ -18,6 +18,7 @@ Aplikasi desktop Windows untuk mencari lowongan kerja remote dari beberapa situs
 - CV: unggah beberapa versi (PDF atau DOCX).
 - Review AI dengan Claude: skor kecocokan CV dengan lowongan, kekuatan, kekurangan, kata kunci yang hilang, saran penulisan ulang yang bisa disalin, dan cek apakah lowongan menerima pelamar dari Indonesia. Skor tampil di daftar lowongan.
 - Draf cover letter dan bank jawaban untuk pertanyaan formulir yang sering muncul, dengan draf dari AI.
+- Bantuan mengisi formulir lamaran: halaman lamaran dibuka di browser dalam aplikasi (WebView2), lalu "Isi otomatis" mengisi data diri, melampirkan CV, dan mendaftar pertanyaan yang belum terjawab beserta jawaban dari bank jawaban atau draf AI. Paling cocok untuk formulir Greenhouse, Lever, dan Ashby. Aplikasi tidak pernah menekan tombol kirim; Anda memeriksa lalu mengirim sendiri, kemudian menandainya "Dilamar".
 - Data tersimpan lokal (SQLite), jadi daftar terakhir tetap bisa dibuka tanpa internet.
 - Pembaruan otomatis saat aplikasi dibuka dan setiap 30 menit selama terbuka, untuk sumber yang datanya sudah lebih dari 6 jam.
 
@@ -79,6 +80,8 @@ Fitur AI memakai Claude API dan butuh API key dari [console.anthropic.com](https
 
 Model bisa dipilih di Pengaturan: Claude Opus 5.5 (bawaan, paling teliti), Claude Sonnet 5.5, atau Claude Haiku 4.5 (paling hemat). Setiap review mengirim CV dan teks lowongan ke Anthropic. AI diminta hanya menyusun ulang isi CV, tidak menambah pengalaman yang tidak ada.
 
-## Rencana berikutnya
+## Batasan yang diketahui
 
-1. Bantuan mengisi formulir lamaran.
+- Fitur AI sudah diuji dengan server tiruan, belum dengan API key asli.
+- Pengisi formulir diuji di Chromium dengan formulir contoh yang meniru Greenhouse, Lever, dan Ashby. Formulir asli bisa berbeda dan berubah sewaktu-waktu, jadi selalu periksa hasilnya sebelum mengirim.
+- Lowongan dari situs agregator (Remote OK, We Work Remotely, dan sebagainya) sering mengarah ke halaman perusahaan dengan formulir yang beragam. Di sana pengisian otomatis bisa sebagian saja.
