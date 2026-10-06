@@ -129,11 +129,11 @@ class _Fact extends StatelessWidget {
 /// data, so anything that is not a web address is refused.
 Future<void> _openInBrowser(BuildContext context, String url) async {
   final uri = Uri.tryParse(url);
-  final isWebLink = uri != null && (uri.isScheme('https') || uri.isScheme('http'));
+  final isWebLink =
+      uri != null && (uri.isScheme('https') || uri.isScheme('http'));
   final opened =
       isWebLink && await launchUrl(uri, mode: LaunchMode.externalApplication);
   if (opened || !context.mounted) return;
-  ScaffoldMessenger.of(
-    context,
-  ).showSnackBar(const SnackBar(content: Text('Tautan tidak bisa dibuka.')));
+  ScaffoldMessenger.of(context)
+      .showSnackBar(const SnackBar(content: Text('Tautan tidak bisa dibuka.')));
 }

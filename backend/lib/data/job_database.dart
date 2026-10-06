@@ -96,10 +96,10 @@ class JobDatabase {
           ],
         );
       }
-      _db.execute(
-        'DELETE FROM jobs WHERE source_id = ? AND last_seen_at < ?',
-        [sourceId, now - retention.inMilliseconds],
-      );
+      _db.execute('DELETE FROM jobs WHERE source_id = ? AND last_seen_at < ?', [
+        sourceId,
+        now - retention.inMilliseconds,
+      ]);
       _db.execute(
         '''
         INSERT INTO source_state (source_id, last_fetched_at) VALUES (?, ?)
@@ -174,10 +174,9 @@ class JobDatabase {
   }
 
   String descriptionOf(String jobId) {
-    final rows = _db.select(
-      'SELECT description_html FROM jobs WHERE id = ?',
-      [jobId],
-    );
+    final rows = _db.select('SELECT description_html FROM jobs WHERE id = ?', [
+      jobId,
+    ]);
     return rows.isEmpty ? '' : rows.first['description_html'] as String;
   }
 

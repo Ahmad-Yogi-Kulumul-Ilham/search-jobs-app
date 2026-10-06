@@ -26,7 +26,8 @@ class WeWorkRemotelySource extends JobSource {
     }
     final jobs = <Job>[];
     for (final item in document.findAllElements('item')) {
-      String field(String name) => item.getElement(name)?.innerText.trim() ?? '';
+      String field(String name) =>
+          item.getElement(name)?.innerText.trim() ?? '';
 
       final url = field('link').isNotEmpty ? field('link') : field('guid');
       // Feed titles look like "Company: Job title".

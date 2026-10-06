@@ -107,7 +107,10 @@ void main() {
     ''');
 
     final job = jobs.single;
-    expect(job.id, 'weworkremotely:https://weworkremotely.com/remote-jobs/semaphore-spe');
+    expect(
+      job.id,
+      'weworkremotely:https://weworkremotely.com/remote-jobs/semaphore-spe',
+    );
     expect(job.company, 'Semaphore');
     expect(job.title, 'Senior Product Engineer');
     expect(job.location, 'Anywhere in the World');

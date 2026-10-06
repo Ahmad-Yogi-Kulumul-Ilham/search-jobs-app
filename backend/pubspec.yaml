@@ -5,3 +5,13 @@ version: 0.1.0
 
 environment:
   sdk: ^3.13.0
+
+dependencies:
+  html: ^0.15.7
+  http: ^1.6.0
+  sqlite3: ^3.7.0
+  xml: ^7.1.0
+
+dev_dependencies:
+  lints: ^6.1.0
+  test: ^1.32.0

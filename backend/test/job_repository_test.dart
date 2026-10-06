@@ -9,7 +9,7 @@ import 'package:search_jobs_backend/sources/remote_ok_source.dart';
 
 const _remoteOkBody = '''
 [
-  {"legal": "…"},
+  {"legal": "API Terms of Service"},
   {"id": "1", "epoch": 1791129603, "company": "Fortanix",
    "position": "Rust Engineer", "tags": ["rust", "backend"],
    "description": "<p>Rust</p>", "location": "Worldwide",
@@ -53,7 +53,11 @@ void main() {
     test('search matches every word across fields, newest first', () {
       database.saveFetch('remoteok', [
         _job('1', title: 'Rust Engineer', publishedAt: DateTime(2026, 10, 1)),
-        _job('2', title: 'Senior Rust Engineer', publishedAt: DateTime(2026, 10, 5)),
+        _job(
+          '2',
+          title: 'Senior Rust Engineer',
+          publishedAt: DateTime(2026, 10, 5),
+        ),
         _job('3', title: 'Designer'),
       ], now);
 
@@ -136,7 +140,9 @@ void main() {
     });
 
     test('reports an unreadable body without touching stored jobs', () async {
-      database.saveFetch('remoteok', [_job('1')], now.subtract(const Duration(days: 1)));
+      database.saveFetch('remoteok', [
+        _job('1'),
+      ], now.subtract(const Duration(days: 1)));
 
       final result = await repository(
         (request) async => http.Response('<html>blocked</html>', 200),
