@@ -8,7 +8,7 @@ Aplikasi desktop Windows untuk mencari lowongan kerja remote dari beberapa situs
 - Menambah sumber sendiri: feed RSS, atau halaman karier perusahaan di Greenhouse, Lever, dan Ashby (hanya lowongan remote yang diambil).
 - Temukan sumber: daftar sumber pilihan, plus pencarian sumber baru. "Cari dari lowongan" (gratis) memeriksa apakah perusahaan di lowongan yang sudah masuk punya halaman karier di Greenhouse, Lever, atau Ashby, 40 perusahaan per klik. "Cari dengan AI" mencari situs dan perusahaan baru di web memakai AI yang dipilih di Pengaturan. Setiap temuan diambil sekali untuk dicek sebelum ditampilkan; centang yang mau ditambahkan.
 - Pencarian berdasarkan posisi, perusahaan, lokasi, kategori, atau keahlian.
-- Filter: bisa dilamar dari Indonesia, ada info gaji, jenis kerja, dan sumber.
+- Filter: bisa dilamar dari Indonesia, negara atau wilayah (dibaca dari lokasi lowongan, termasuk kota dan negara bagian), ada info gaji, jenis kerja, dan sumber.
 - Gaji dikonversi ke perkiraan Rupiah per bulan (kurs harian Bank Sentral Eropa lewat Frankfurter).
 - Perkiraan jam kerja dalam WIB untuk lowongan yang terbatas di wilayah tertentu.
 - Pelacak lamaran: Disimpan, Dilamar, Interview, Tawaran, Ditolak, lengkap dengan catatan dan jadwal interview. Lamaran dari situs lain bisa ditambahkan manual.
