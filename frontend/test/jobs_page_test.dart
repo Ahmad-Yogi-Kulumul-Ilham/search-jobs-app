@@ -28,6 +28,48 @@ void main() {
     age: const Duration(days: 3),
   );
 
+  testWidgets('filters jobs by country', (tester) async {
+    final services = testServices(
+      tester,
+      jobs: [
+        rust,
+        designer,
+        testJob('3', title: 'Data Analyst', location: 'Remote - Singapore'),
+        testJob('4', title: 'Support Agent', location: 'Remote - USA'),
+      ],
+    );
+    await pumpApp(tester, services);
+    expect(find.textContaining('4 lowongan'), findsOneWidget);
+
+    await tester.tap(find.text('Negara'));
+    await tester.pumpAndSettle();
+    // Only places some job names are offered, with their counts.
+    expect(find.text('Seluruh dunia (1)'), findsOneWidget);
+    expect(find.text('Eropa (1)'), findsOneWidget);
+    expect(find.text('Singapura (1)'), findsOneWidget);
+    expect(find.text('Amerika Serikat (1)'), findsOneWidget);
+    expect(find.textContaining('Jepang'), findsNothing);
+
+    await tester.tap(find.text('Singapura (1)'));
+    await tester.pumpAndSettle();
+    await tester.tap(find.text('Seluruh dunia (1)'));
+    await tester.pumpAndSettle();
+    await tester.tapAt(const Offset(1000, 600));
+    await tester.pumpAndSettle();
+
+    expect(find.textContaining('2 lowongan'), findsOneWidget);
+    expect(find.text('Data Analyst'), findsOneWidget);
+    expect(find.text('Rust Engineer'), findsOneWidget);
+    expect(find.text('Support Agent'), findsNothing);
+    expect(find.text('Negara (2)'), findsOneWidget);
+
+    await tester.tap(find.text('Negara (2)'));
+    await tester.pumpAndSettle();
+    await tester.tap(find.text('Hapus pilihan negara'));
+    await tester.pumpAndSettle();
+    expect(find.textContaining('4 lowongan'), findsOneWidget);
+  });
+
   testWidgets('lists stored jobs, filters them, and opens one', (tester) async {
     final services = testServices(tester, jobs: [rust, designer]);
     await pumpApp(tester, services);

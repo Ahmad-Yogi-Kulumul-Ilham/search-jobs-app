@@ -133,6 +133,7 @@ class _JobsPageState extends State<JobsPage> {
           child: _FilterBar(
             filter: _controller.filter,
             sources: services.registry.active(),
+            placeCounts: services.database.jobs.placeCounts(),
             // The bar was built before the latest keystrokes reached the
             // list, so keep the query the controller has now.
             onChanged: (filter) => _controller.setFilter(
@@ -306,17 +307,28 @@ class _AlertNameDialogState extends State<_AlertNameDialog> {
   }
 }
 
-/// Quick filter chips plus menus for job type and source.
+/// Quick filter chips plus menus for country, job type, and source.
 class _FilterBar extends StatelessWidget {
   const _FilterBar({
     required this.filter,
     required this.sources,
+    required this.placeCounts,
     required this.onChanged,
   });
 
   final JobFilter filter;
   final List<JobSource> sources;
+
+  /// Jobs per place code, so the country menu lists only places that some
+  /// job names.
+  final Map<String, int> placeCounts;
   final ValueChanged<JobFilter> onChanged;
+
+  String get _placesLabel => switch (filter.places.length) {
+    0 => 'Negara',
+    1 => placeByCode(filter.places.single)?.name ?? 'Negara',
+    final count => 'Negara ($count)',
+  };
 
   @override
   Widget build(BuildContext context) {
@@ -324,6 +336,29 @@ class _FilterBar extends StatelessWidget {
         values.contains(value)
         ? ({...values}..remove(value))
         : {...values, value};
+
+    // Places some job names, or that are picked; countries with the most
+    // jobs first.
+    final shown = [
+      for (final place in places)
+        if ((placeCounts[place.code] ?? 0) > 0 ||
+            filter.places.contains(place.code))
+          place,
+    ];
+    final areas = shown.where((p) => p.kind != PlaceKind.country).toList();
+    final countries = shown.where((p) => p.kind == PlaceKind.country).toList()
+      ..sort(
+        (a, b) =>
+            (placeCounts[b.code] ?? 0).compareTo(placeCounts[a.code] ?? 0),
+      );
+    Widget placeItem(Place place) => CheckboxMenuButton(
+      value: filter.places.contains(place.code),
+      closeOnActivate: false,
+      onChanged: (_) => onChanged(
+        filter.copyWith(places: toggled(filter.places, place.code)),
+      ),
+      child: Text('${place.name} (${placeCounts[place.code] ?? 0})'),
+    );
 
     return Wrap(
       spacing: 6,
@@ -339,6 +374,28 @@ class _FilterBar extends StatelessWidget {
           onSelected: (value) =>
               onChanged(filter.copyWith(openToIndonesiaOnly: value)),
           visualDensity: VisualDensity.compact,
+        ),
+        _MenuChip(
+          label: _placesLabel,
+          active: filter.places.isNotEmpty,
+          items: [
+            if (shown.isEmpty)
+              const MenuItemButton(
+                child: Text('Belum ada lokasi yang dikenali'),
+              ),
+            for (final place in areas) placeItem(place),
+            if (areas.isNotEmpty && countries.isNotEmpty)
+              const Divider(height: 8),
+            for (final place in countries) placeItem(place),
+            if (filter.places.isNotEmpty) ...[
+              const Divider(height: 8),
+              MenuItemButton(
+                leadingIcon: const Icon(Icons.clear, size: 18),
+                onPressed: () => onChanged(filter.copyWith(places: {})),
+                child: const Text('Hapus pilihan negara'),
+              ),
+            ],
+          ],
         ),
         FilterChip(
           label: const Text('Ada gaji'),
