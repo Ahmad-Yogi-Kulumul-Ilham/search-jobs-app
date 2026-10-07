@@ -7,6 +7,7 @@ import '../util/region.dart';
 import 'alert_store.dart';
 import 'application_store.dart';
 import 'cv_store.dart';
+import 'discovery_store.dart';
 import 'job_store.dart';
 import 'settings_store.dart';
 import 'source_store.dart';
@@ -31,6 +32,7 @@ class AppDatabase {
   late final SettingsStore settings = SettingsStore(sql);
   late final AlertStore alerts = AlertStore(sql);
   late final CvStore cvs = CvStore(sql);
+  late final DiscoveryStore discovery = DiscoveryStore(sql);
 
   void close() => sql.close();
 
@@ -182,6 +184,25 @@ final List<void Function(Database)> _migrations = [
       id INTEGER PRIMARY KEY AUTOINCREMENT,
       cost_usd REAL NOT NULL,
       created_at INTEGER NOT NULL
+    );
+  '''),
+  (sql) => sql.execute('''
+    CREATE TABLE discovered_sources (
+      kind TEXT NOT NULL,
+      value TEXT NOT NULL,
+      name TEXT NOT NULL,
+      origin TEXT NOT NULL,
+      note TEXT NOT NULL,
+      remote_jobs INTEGER NOT NULL,
+      open_jobs INTEGER NOT NULL,
+      verified INTEGER NOT NULL,
+      found_at INTEGER NOT NULL,
+      dismissed INTEGER NOT NULL DEFAULT 0,
+      PRIMARY KEY (kind, value)
+    );
+    CREATE TABLE discovery_checked (
+      company TEXT PRIMARY KEY,
+      checked_at INTEGER NOT NULL
     );
   '''),
 ];
