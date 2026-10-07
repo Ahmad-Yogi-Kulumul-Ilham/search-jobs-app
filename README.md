@@ -8,7 +8,7 @@ Aplikasi desktop Windows untuk mencari lowongan kerja remote dari beberapa situs
 - Menambah sumber sendiri: feed RSS, atau halaman karier perusahaan di Greenhouse, Lever, dan Ashby (hanya lowongan remote yang diambil).
 - Temukan sumber: daftar sumber pilihan, plus pencarian sumber baru. "Cari dari lowongan" (gratis) memeriksa apakah perusahaan di lowongan yang sudah masuk punya halaman karier di Greenhouse, Lever, atau Ashby, 40 perusahaan per klik. "Cari dengan AI" mencari situs dan perusahaan baru di web memakai AI yang dipilih di Pengaturan. Setiap temuan diambil sekali untuk dicek sebelum ditampilkan; centang yang mau ditambahkan.
 - Pencarian berdasarkan posisi, perusahaan, lokasi, kategori, atau keahlian.
-- Filter: bisa dilamar dari Indonesia, negara atau wilayah (dibaca dari lokasi lowongan, termasuk kota dan negara bagian), ada info gaji, jenis kerja, dan sumber.
+- Filter: bisa dilamar dari Indonesia, negara atau wilayah (dibaca dari lokasi lowongan, termasuk kota dan negara bagian), level (Magang sampai Pimpinan, dibaca dari judul lowongan), ada info gaji, jenis kerja, dan sumber.
 - Gaji dikonversi ke perkiraan Rupiah per bulan (kurs harian Bank Sentral Eropa lewat Frankfurter).
 - Perkiraan jam kerja dalam WIB untuk lowongan yang terbatas di wilayah tertentu.
 - Pelacak lamaran: Disimpan, Dilamar, Interview, Tawaran, Ditolak, lengkap dengan catatan dan jadwal interview. Lamaran dari situs lain bisa ditambahkan manual.
@@ -18,6 +18,7 @@ Aplikasi desktop Windows untuk mencari lowongan kerja remote dari beberapa situs
 - Peringatan lowongan mencurigakan: meminta bayaran, kontak hanya lewat Telegram/WhatsApp, pembayaran lewat kripto atau kartu hadiah, janji penghasilan besar, email rekrutmen pribadi, atau tanpa nama perusahaan.
 - CV: unggah beberapa versi (PDF atau DOCX).
 - Review AI dengan Claude, ChatGPT, Gemini, atau model lain lewat OpenRouter: skor kecocokan CV dengan lowongan, kekuatan, kekurangan, kata kunci yang hilang, saran penulisan ulang yang bisa disalin, dan cek apakah lowongan menerima pelamar dari Indonesia. Skor tampil di daftar lowongan.
+- Latihan interview dengan AI: pertanyaan yang kemungkinan muncul untuk lowongan tertentu (perilaku, teknis, peran, kerja remote, dan pertanyaan sulit), alasan dan tips menjawabnya, contoh jawaban dari isi CV, pertanyaan untuk ditanyakan balik, dan hal yang perlu disiapkan. Jawaban latihan Anda bisa dinilai AI (1–5) beserta versi yang lebih kuat. Hasilnya disimpan per lowongan dan CV.
 - Draf cover letter dan bank jawaban untuk pertanyaan formulir yang sering muncul, dengan draf dari AI.
 - Bantuan mengisi formulir lamaran: halaman lamaran dibuka di browser dalam aplikasi (WebView2), lalu "Isi otomatis" mengisi data diri, melampirkan CV, dan mendaftar pertanyaan yang belum terjawab beserta jawaban dari bank jawaban atau draf AI. Paling cocok untuk formulir Greenhouse, Lever, dan Ashby. Aplikasi tidak pernah menekan tombol kirim; Anda memeriksa lalu mengirim sendiri, kemudian menandainya "Dilamar".
 - Data tersimpan lokal (SQLite), jadi daftar terakhir tetap bisa dibuka tanpa internet.
