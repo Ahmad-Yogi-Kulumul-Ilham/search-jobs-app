@@ -1,3 +1,4 @@
+import 'dart:async';
 import 'dart:convert';
 import 'dart:io';
 import 'dart:typed_data';
@@ -197,6 +198,153 @@ void main() {
     expect(services.openRouterModel, 'deepseek/deepseek-chat');
     expect(services.aiReady, isTrue);
     expect(services.reviewer()!.provider, AiProvider.openrouter);
+  });
+
+  testWidgets('practises interview questions, and rates an answer', (
+    tester,
+  ) async {
+    final asked = <String>[];
+    final services = testServices(
+      tester,
+      jobs: [testJob('1', title: 'Flutter Developer', location: 'Worldwide')],
+      onClaude: (http.Request sent) async {
+        final body = jsonDecode(sent.body) as Map<String, Object?>;
+        final content =
+            ((body['messages'] as List).single as Map)['content'] as List;
+        final prompt = (content.last as Map)['text'] as String;
+        asked.add(prompt);
+        if (prompt.contains('My answer:')) {
+          return claudeAnswer({
+            'rating': 3,
+            'summary': 'Sudah menjawab, tapi belum ada contoh nyata.',
+            'strengths': ['Singkat dan jelas'],
+            'improvements': ['Sebutkan jam overlap yang pasti'],
+            'improved_answer': 'I keep a [4-hour] overlap with the team.',
+          });
+        }
+        return claudeAnswer({
+          'overview': 'Interview akan fokus pada Flutter dan kerja remote.',
+          'questions': [
+            {
+              'kind': 'remote',
+              'question': 'How do you work across time zones?',
+              'why': 'Timnya tersebar di banyak zona waktu.',
+              'tips': 'Sebutkan jam kerja dan cara berkomunikasi.',
+              'sample_answer': 'I plan my day around a shared overlap…',
+            },
+          ],
+          'questions_to_ask': ['How is the team spread across time zones?'],
+          'to_prepare': ['Hitung selisih waktu dengan kantor pusat.'],
+        });
+      },
+    );
+    services.database.cvs.add(
+      name: 'CV Utama',
+      fileName: 'cv.pdf',
+      bytes: _pdf,
+      now: DateTime.now(),
+    );
+    services.setApiKey('sk-ant-test');
+    await pumpApp(tester, services);
+
+    await tester.tap(find.text('Flutter Developer'));
+    await tester.pumpAndSettle();
+    await tester.tap(find.text('Latihan interview'));
+    await tester.pumpAndSettle();
+
+    expect(asked, ['Prepare me for the interviews for this job.']);
+    expect(find.text('Kerja remote'), findsOneWidget);
+    expect(
+      find.text('Hitung selisih waktu dengan kantor pusat.'),
+      findsNothing,
+    );
+    expect(find.textContaining('Hitung selisih waktu'), findsOneWidget);
+
+    await tester.tap(find.text('How do you work across time zones?'));
+    await tester.pumpAndSettle();
+    expect(find.text('I plan my day around a shared overlap…'), findsOneWidget);
+
+    await tester.enterText(
+      find.widgetWithText(TextField, 'Tulis seperti Anda akan mengucapkannya…'),
+      'I am flexible with hours.',
+    );
+    await tester.pump();
+    await tester.ensureVisible(find.text('Nilai jawaban'));
+    await tester.pumpAndSettle();
+    await tester.tap(find.text('Nilai jawaban'));
+    await tester.pumpAndSettle();
+
+    expect(asked.last, contains('My answer:\nI am flexible with hours.'));
+    expect(find.text('3/5'), findsOneWidget);
+    expect(find.text('• Sebutkan jam overlap yang pasti'), findsOneWidget);
+    expect(
+      find.text('I keep a [4-hour] overlap with the team.'),
+      findsOneWidget,
+    );
+
+    // Reopening shows the saved questions without asking the AI again.
+    await tester.tap(find.text('Tutup'));
+    await tester.pumpAndSettle();
+    await tester.tap(find.text('Latihan interview'));
+    await tester.pumpAndSettle();
+    expect(find.text('How do you work across time zones?'), findsOneWidget);
+    expect(asked, hasLength(2));
+  });
+
+  testWidgets('reopening interview practice while it is being made does '
+      'not pay twice', (tester) async {
+    final answer = Completer<http.Response>();
+    var requests = 0;
+    final services = testServices(
+      tester,
+      jobs: [testJob('1', title: 'Flutter Developer')],
+      onClaude: (_) {
+        requests++;
+        return answer.future;
+      },
+    );
+    services.database.cvs.add(
+      name: 'CV Utama',
+      fileName: 'cv.pdf',
+      bytes: _pdf,
+      now: DateTime.now(),
+    );
+    services.setApiKey('sk-ant-test');
+    await pumpApp(tester, services);
+    await tester.tap(find.text('Flutter Developer'));
+    await tester.pumpAndSettle();
+
+    await tester.tap(find.text('Latihan interview'));
+    await tester.pump();
+    expect(find.textContaining('sedang menyiapkan pertanyaan'), findsOneWidget);
+    await tester.tap(find.text('Tutup'));
+    await tester.pumpAndSettle();
+    await tester.tap(find.text('Latihan interview'));
+    await tester.pump();
+    expect(find.textContaining('sedang menyiapkan pertanyaan'), findsOneWidget);
+
+    answer.complete(
+      claudeAnswer({
+        'overview': 'Fokus pada Flutter.',
+        'questions': [
+          {
+            'kind': 'technical',
+            'question': 'Why Flutter?',
+            'why': '-',
+            'tips': '-',
+            'sample_answer': '-',
+          },
+        ],
+        'questions_to_ask': <String>[],
+        'to_prepare': <String>[],
+      }),
+    );
+    await tester.pumpAndSettle();
+
+    expect(requests, 1);
+    expect(find.text('Why Flutter?'), findsOneWidget);
+    // 10k input and 2k output tokens on Opus, billed once.
+    expect(services.database.cvs.totalCostUsd(), closeTo(0.08, 1e-9));
   });
 
   testWidgets('reviews a CV against a job and shows the score', (tester) async {

@@ -4,9 +4,10 @@ import 'package:search_jobs_backend/search_jobs_backend.dart';
 
 import '../../app_services.dart';
 import '../common.dart';
+import 'interview_prep_dialog.dart';
 
-/// Reviews the user's CV against one job with AI, and drafts a cover
-/// letter for it.
+/// Reviews the user's CV against one job with AI, drafts a cover letter for
+/// it, and opens interview practice.
 class ReviewPanel extends StatefulWidget {
   const ReviewPanel({
     super.key,
@@ -172,6 +173,21 @@ class _ReviewPanelState extends State<ReviewPanel> {
                     icon: const Icon(Icons.edit_note, size: 18),
                     label: const Text('Buat cover letter'),
                     onPressed: _busy ? null : () => _coverLetter(cv!),
+                  ),
+                  OutlinedButton.icon(
+                    icon: const Icon(Icons.record_voice_over, size: 18),
+                    label: const Text('Latihan interview'),
+                    onPressed: _busy
+                        ? null
+                        : () => showDialog<void>(
+                            context: context,
+                            builder: (context) => InterviewPrepDialog(
+                              services: _services,
+                              job: widget.job,
+                              cv: cv!,
+                              descriptionText: widget.descriptionText,
+                            ),
+                          ),
                   ),
                   if (_busy)
                     const SizedBox.square(
