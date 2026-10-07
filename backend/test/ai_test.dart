@@ -373,4 +373,462 @@ void main() {
       );
     });
   });
+
+  group('other providers', () {
+    final pdfCv = Cv(
+      id: 1,
+      name: 'CV',
+      fileName: 'cv.pdf',
+      format: CvFormat.pdf,
+      bytes: _pdf,
+      text: '',
+      createdAt: DateTime(2026),
+    );
+    http.Response json(Object body, [int status = 200]) => http.Response.bytes(
+      utf8.encode(jsonEncode(body)),
+      status,
+      headers: {'content-type': 'application/json'},
+    );
+
+    test('OpenAI: Responses API with a strict schema and the PDF', () async {
+      late Map<String, Object?> sent;
+      late http.Request request;
+      final reviewer = CvReviewer(
+        OpenAiClient(
+          apiKey: 'sk-proj-test',
+          model: AiModel.gpt61Sol,
+          client: MockClient((r) async {
+            request = r;
+            sent = jsonDecode(r.body) as Map<String, Object?>;
+            return json({
+              'model': 'gpt-6.1-sol-2026-09-30',
+              'status': 'completed',
+              'output': [
+                {'type': 'reasoning', 'summary': <Object>[]},
+                {
+                  'type': 'message',
+                  'content': [
+                    {'type': 'output_text', 'text': jsonEncode(_reviewJson)},
+                  ],
+                },
+              ],
+              'usage': {'input_tokens': 10000, 'output_tokens': 2000},
+            });
+          }),
+        ),
+      );
+
+      final (review, usage) = await reviewer.review(
+        cv: pdfCv,
+        job: _job,
+        jobDescription: 'We need Flutter.',
+      );
+
+      expect(request.url.toString(), 'https://api.openai.com/v1/responses');
+      expect(request.headers['authorization'], 'Bearer sk-proj-test');
+      expect(sent['model'], 'gpt-6.1-sol');
+      expect(sent['store'], isFalse);
+      expect(sent['instructions'], contains('Never add experience'));
+      final format = (sent['text'] as Map)['format'] as Map;
+      expect(format['type'], 'json_schema');
+      expect(format['strict'], isTrue);
+      final content =
+          ((sent['input'] as List).single as Map)['content'] as List;
+      final file = content.firstWhere(
+        (p) => (p as Map)['type'] == 'input_file',
+      );
+      expect((file as Map)['filename'], 'cv.pdf');
+      expect(
+        file['file_data'],
+        'data:application/pdf;base64,${base64Encode(_pdf)}',
+      );
+      expect(
+        content.map((p) => (p as Map)['text']).join(),
+        contains('We need Flutter.'),
+      );
+
+      expect(review.score, 82);
+      expect(usage.model, 'gpt-6.1-sol-2026-09-30');
+      // 10k input at \$2/M plus 2k output at \$10/M.
+      expect(usage.costUsd, closeTo(0.04, 1e-9));
+    });
+
+    test('OpenAI: refusals and cut-off answers are explained', () async {
+      Future<String> failure(Map<String, Object?> body) async {
+        try {
+          await OpenAiClient(
+            apiKey: 'k',
+            model: AiModel.gpt6Luna,
+            client: MockClient((_) async => json(body)),
+          ).createJson(system: 's', content: const [], schema: const {});
+          fail('expected an AiException');
+        } on AiException catch (error) {
+          return error.message;
+        }
+      }
+
+      expect(
+        await failure({
+          'status': 'completed',
+          'output': [
+            {
+              'type': 'message',
+              'content': [
+                {'type': 'refusal', 'refusal': 'No.'},
+              ],
+            },
+          ],
+        }),
+        contains('ChatGPT menolak'),
+      );
+      expect(
+        await failure({
+          'status': 'incomplete',
+          'incomplete_details': {'reason': 'max_output_tokens'},
+        }),
+        contains('terpotong'),
+      );
+    });
+
+    test('Gemini: generateContent with a JSON schema and inline PDF', () async {
+      late Map<String, Object?> sent;
+      late http.Request request;
+      final reviewer = CvReviewer(
+        GeminiClient(
+          apiKey: 'AIza-test',
+          model: AiModel.gemini38Flash,
+          client: MockClient((r) async {
+            request = r;
+            sent = jsonDecode(r.body) as Map<String, Object?>;
+            return json({
+              'modelVersion': 'gemini-3.8-flash',
+              'candidates': [
+                {
+                  'finishReason': 'STOP',
+                  'content': {
+                    'role': 'model',
+                    'parts': [
+                      {'text': 'thinking…', 'thought': true},
+                      {'text': jsonEncode(_reviewJson)},
+                    ],
+                  },
+                },
+              ],
+              'usageMetadata': {
+                'promptTokenCount': 10000,
+                'candidatesTokenCount': 1500,
+                'thoughtsTokenCount': 500,
+              },
+            });
+          }),
+        ),
+      );
+
+      final (review, usage) = await reviewer.review(
+        cv: pdfCv,
+        job: _job,
+        jobDescription: 'We need Flutter.',
+      );
+
+      expect(
+        request.url.toString(),
+        'https://generativelanguage.googleapis.com/v1beta/models/'
+        'gemini-3.8-flash:generateContent',
+      );
+      expect(request.headers['x-goog-api-key'], 'AIza-test');
+      final config = sent['generationConfig'] as Map;
+      expect(config['responseMimeType'], 'application/json');
+      expect((config['responseJsonSchema'] as Map)['required'], isNotEmpty);
+      final parts = ((sent['contents'] as List).single as Map)['parts'] as List;
+      final inline = parts.firstWhere(
+        (p) => (p as Map).containsKey('inlineData'),
+      );
+      expect(
+        base64Decode(((inline as Map)['inlineData'] as Map)['data'] as String),
+        _pdf,
+      );
+      expect(
+        (((sent['systemInstruction'] as Map)['parts'] as List).single
+            as Map)['text'],
+        contains('Never add experience'),
+      );
+
+      expect(review.score, 82);
+      // 10k input at \$0.75/M plus 2k output (with thinking) at \$3.75/M.
+      expect(usage.costUsd, closeTo(0.015, 1e-9));
+    });
+
+    test('Gemini: a rejected key and a blocked prompt', () async {
+      Future<String> failure(http.Response response) async {
+        try {
+          await GeminiClient(
+            apiKey: 'bad',
+            model: AiModel.gemini31Pro,
+            client: MockClient((_) async => response),
+          ).createJson(system: 's', content: const [], schema: const {});
+          fail('expected an AiException');
+        } on AiException catch (error) {
+          return error.message;
+        }
+      }
+
+      expect(
+        await failure(
+          json({
+            'error': {
+              'code': 400,
+              'message': 'API key not valid. Please pass a valid API key.',
+              'status': 'INVALID_ARGUMENT',
+            },
+          }, 400),
+        ),
+        'API key ditolak. Periksa kembali API key Gemini di Pengaturan.',
+      );
+      expect(
+        await failure(
+          json({
+            'promptFeedback': {'blockReason': 'SAFETY'},
+          }),
+        ),
+        contains('Gemini menolak'),
+      );
+    });
+
+    test('OpenRouter: any model id, cost from its own bill', () async {
+      late Map<String, Object?> sent;
+      late http.Request request;
+      final client = OpenRouterClient(
+        apiKey: 'sk-or-v1-test',
+        modelId: 'deepseek/deepseek-chat',
+        client: MockClient((r) async {
+          request = r;
+          sent = jsonDecode(r.body) as Map<String, Object?>;
+          return json({
+            'model': 'deepseek/deepseek-chat',
+            'choices': [
+              {
+                'finish_reason': 'stop',
+                'message': {
+                  'role': 'assistant',
+                  // Some hosts wrap the JSON in a code fence.
+                  'content': '```json\n{"answer": "Saya tertarik."}\n```',
+                },
+              },
+            ],
+            'usage': {
+              'prompt_tokens': 900,
+              'completion_tokens': 100,
+              'cost': 0.00042,
+            },
+          });
+        }),
+      );
+
+      final (answer, usage) = await CvReviewer(client)
+          .draftAnswer(cv: pdfCv, question: 'Why us?');
+
+      expect(
+        request.url.toString(),
+        'https://openrouter.ai/api/v1/chat/completions',
+      );
+      expect(request.headers['authorization'], 'Bearer sk-or-v1-test');
+      expect(sent['model'], 'deepseek/deepseek-chat');
+      expect((sent['provider'] as Map)['require_parameters'], isTrue);
+      final format = sent['response_format'] as Map;
+      expect(format['type'], 'json_schema');
+      final messages = sent['messages'] as List;
+      expect((messages.first as Map)['role'], 'system');
+      final parts = (messages.last as Map)['content'] as List;
+      final file = parts.firstWhere((p) => (p as Map)['type'] == 'file');
+      expect(((file as Map)['file'] as Map)['filename'], 'cv.pdf');
+
+      expect(answer, 'Saya tertarik.');
+      expect(usage.costUsd, 0.00042);
+    });
+
+    test('OpenRouter: a model that cannot answer in JSON', () async {
+      final client = OpenRouterClient(
+        apiKey: 'k',
+        modelId: 'some/model',
+        client: MockClient(
+          (_) async => json({
+            'error': {
+              'code': 404,
+              'message':
+                  'No endpoints found that can handle the requested '
+                  'parameters.',
+            },
+          }, 404),
+        ),
+      );
+      expect(
+        () =>
+            client.createJson(system: 's', content: const [], schema: const {}),
+        throwsA(
+          isA<AiException>().having(
+            (e) => e.message,
+            'message',
+            contains('format terstruktur'),
+          ),
+        ),
+      );
+    });
+
+    group('web search', () {
+      const answer = {
+        'sources': [
+          {'name': 'NewCo', 'url': 'https://jobs.ashbyhq.com/newco'},
+        ],
+      };
+
+      test('Claude: resumes a paused turn and bills each search', () async {
+        final sent = <Map<String, Object?>>[];
+        final client = ClaudeClient(
+          apiKey: 'k',
+          model: AiModel.sonnet,
+          client: MockClient((r) async {
+            sent.add(jsonDecode(r.body) as Map<String, Object?>);
+            final paused = sent.length == 1;
+            return json({
+              'model': 'claude-sonnet-5-5',
+              'stop_reason': paused ? 'pause_turn' : 'end_turn',
+              'content': [
+                {'type': 'text', 'text': 'Mencari {sebentar}…'},
+                {'type': 'server_tool_use', 'id': 's$paused'},
+                {'type': 'web_search_tool_result', 'tool_use_id': 's$paused'},
+                if (!paused)
+                  {'type': 'text', 'text': 'Hasilnya: ${jsonEncode(answer)}'},
+              ],
+              'usage': {
+                'input_tokens': 1000000,
+                'output_tokens': 0,
+                'server_tool_use': {'web_search_requests': 3},
+              },
+            });
+          }),
+        );
+
+        final result = await client.searchJson(system: 's', prompt: 'p');
+
+        expect(sent, hasLength(2));
+        final tool = (sent.first['tools'] as List).single as Map;
+        expect(tool['type'], 'web_search_20250305');
+        expect(tool['max_uses'], 8);
+        expect(sent.first.containsKey('output_config'), isFalse);
+        // The paused turn goes back as the assistant's message.
+        expect(
+          (sent.last['messages'] as List).last,
+          containsPair('role', 'assistant'),
+        );
+        expect(result.json, answer);
+        // 2M input at \$2/M plus 6 searches at \$0.01.
+        expect(result.costUsd, closeTo(4.06, 1e-9));
+      });
+
+      test('OpenAI: web_search tool, one fee per search call', () async {
+        late Map<String, Object?> sent;
+        final result = await OpenAiClient(
+          apiKey: 'k',
+          model: AiModel.gpt6Luna,
+          client: MockClient((r) async {
+            sent = jsonDecode(r.body) as Map<String, Object?>;
+            return json({
+              'status': 'completed',
+              'output': [
+                {'type': 'web_search_call', 'status': 'completed'},
+                {'type': 'web_search_call', 'status': 'completed'},
+                {
+                  'type': 'message',
+                  'content': [
+                    {'type': 'output_text', 'text': jsonEncode(answer)},
+                  ],
+                },
+              ],
+              'usage': {'input_tokens': 0, 'output_tokens': 0},
+            });
+          }),
+        ).searchJson(system: 's', prompt: 'p', maxSearches: 4);
+
+        expect(sent['tools'], [
+          {'type': 'web_search'},
+        ]);
+        expect(sent['max_tool_calls'], 4);
+        expect(sent.containsKey('text'), isFalse);
+        expect(result.json, answer);
+        expect(result.costUsd, closeTo(0.02, 1e-9));
+      });
+
+      test('Gemini: Google Search grounding, billed per query', () async {
+        late Map<String, Object?> sent;
+        final result = await GeminiClient(
+          apiKey: 'k',
+          model: AiModel.gemini31FlashLite,
+          client: MockClient((r) async {
+            sent = jsonDecode(r.body) as Map<String, Object?>;
+            return json({
+              'candidates': [
+                {
+                  'finishReason': 'STOP',
+                  'content': {
+                    'parts': [
+                      {'text': '```json\n${jsonEncode(answer)}\n```'},
+                    ],
+                  },
+                  'groundingMetadata': {
+                    'webSearchQueries': ['a', 'b', 'c'],
+                  },
+                },
+              ],
+            });
+          }),
+        ).searchJson(system: 's', prompt: 'p');
+
+        expect(sent['tools'], [
+          {'google_search': <String, Object?>{}},
+        ]);
+        expect(
+          (sent['generationConfig'] as Map).containsKey('responseJsonSchema'),
+          isFalse,
+        );
+        expect(result.json, answer);
+        expect(result.costUsd, closeTo(0.042, 1e-9));
+      });
+
+      test('OpenRouter: the web plugin, with its own bill', () async {
+        late Map<String, Object?> sent;
+        final result = await OpenRouterClient(
+          apiKey: 'k',
+          modelId: 'qwen/qwen3',
+          client: MockClient((r) async {
+            sent = jsonDecode(r.body) as Map<String, Object?>;
+            return json({
+              'choices': [
+                {
+                  'finish_reason': 'stop',
+                  'message': {'content': jsonEncode(answer)},
+                },
+              ],
+              'usage': {'cost': 0.011},
+            });
+          }),
+        ).searchJson(system: 's', prompt: 'p', maxSearches: 5);
+
+        expect(sent['plugins'], [
+          {'id': 'web', 'max_results': 5},
+        ]);
+        expect(sent.containsKey('response_format'), isFalse);
+        expect(result.json, answer);
+        expect(result.costUsd, 0.011);
+      });
+    });
+
+    test('each provider lists its own models', () {
+      for (final provider in AiProvider.values) {
+        expect(provider.models, isNotEmpty);
+        expect(provider.models.every((m) => m.provider == provider), isTrue);
+      }
+      expect(AiModel.byName('gpt6Luna'), AiModel.gpt6Luna);
+      expect(AiModel.byName('unknown'), AiModel.opus);
+    });
+  });
 }
