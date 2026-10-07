@@ -30,6 +30,7 @@ export 'models/salary.dart';
 export 'sources/sources.dart';
 export 'util/docx_text.dart';
 export 'util/format.dart';
+export 'util/places.dart';
 export 'util/region.dart';
 export 'util/scam_check.dart';
 export 'util/work_hours.dart';
