@@ -27,8 +27,17 @@ class AppServices extends ChangeNotifier {
   }
 
   static const _notificationsKey = 'notifications_enabled';
-  static const _apiKeyKey = 'anthropic_api_key_sealed';
   static const _modelKey = 'ai_model';
+  static const _openRouterModelKey = 'openrouter_model';
+
+  /// Where each provider's encrypted key is stored. The Anthropic name
+  /// predates the other providers and is kept so saved keys still work.
+  static const _apiKeyKeys = {
+    AiProvider.anthropic: 'anthropic_api_key_sealed',
+    AiProvider.openai: 'openai_api_key_sealed',
+    AiProvider.gemini: 'gemini_api_key_sealed',
+    AiProvider.openrouter: 'openrouter_api_key_sealed',
+  };
 
   final AppDatabase database;
   final JobRepository repository;
@@ -36,7 +45,7 @@ class AppServices extends ChangeNotifier {
   final SecretBox secretBox;
   final Announcer announcer;
 
-  /// Used for Claude requests; null uses a default client.
+  /// Used for AI requests; null uses a default client.
   final http.Client? aiHttpClient;
   final DateTime Function() _clock;
 
@@ -77,20 +86,24 @@ class AppServices extends ChangeNotifier {
     notifyListeners();
   }
 
-  /// The user's Anthropic API key, or null when none is set or it can no
-  /// longer be decrypted.
-  String? get apiKey {
-    final sealed = database.settings.get(_apiKeyKey);
+  /// The API key for the chosen model's provider, or null when none is set
+  /// or it can no longer be decrypted.
+  String? get apiKey => apiKeyFor(aiModel.provider);
+
+  String? apiKeyFor(AiProvider provider) {
+    final sealed = database.settings.get(_apiKeyKeys[provider]!);
     return sealed == null ? null : secretBox.open(sealed);
   }
 
-  /// Stores the key encrypted; null or empty removes it.
-  void setApiKey(String? key) {
+  /// Stores the key for [provider], by default the chosen model's,
+  /// encrypted; null or empty removes it.
+  void setApiKey(String? key, {AiProvider? provider}) {
+    final setting = _apiKeyKeys[provider ?? aiModel.provider]!;
     final trimmed = key?.trim() ?? '';
     if (trimmed.isEmpty) {
-      database.settings.remove(_apiKeyKey);
+      database.settings.remove(setting);
     } else {
-      database.settings.set(_apiKeyKey, secretBox.seal(trimmed));
+      database.settings.set(setting, secretBox.seal(trimmed));
     }
     notifyListeners();
   }
@@ -102,13 +115,56 @@ class AppServices extends ChangeNotifier {
     notifyListeners();
   }
 
-  /// The AI features, or null until the user sets an API key.
+  /// The OpenRouter model id the user typed, such as
+  /// `deepseek/deepseek-chat`; empty until set.
+  String get openRouterModel =>
+      database.settings.get(_openRouterModelKey) ?? '';
+
+  set openRouterModel(String id) {
+    database.settings.set(_openRouterModelKey, id.trim());
+    notifyListeners();
+  }
+
+  /// Whether the AI features can run: a key for the chosen provider, and
+  /// for OpenRouter a model id too.
+  bool get aiReady =>
+      apiKey != null &&
+      (aiModel != AiModel.openRouter || openRouterModel.isNotEmpty);
+
+  /// The AI features, or null until [aiReady].
   CvReviewer? reviewer() {
+    final client = aiClient();
+    return client == null ? null : CvReviewer(client);
+  }
+
+  /// The chosen model's client, or null until [aiReady].
+  AiClient? aiClient() {
     final key = apiKey;
-    if (key == null) return null;
-    return CvReviewer(
-      ClaudeClient(apiKey: key, model: aiModel, client: aiHttpClient),
-    );
+    if (key == null || !aiReady) return null;
+    final model = aiModel;
+    final client = aiHttpClient;
+    return switch (model.provider) {
+      AiProvider.anthropic => ClaudeClient(
+        apiKey: key,
+        model: model,
+        client: client,
+      ),
+      AiProvider.openai => OpenAiClient(
+        apiKey: key,
+        model: model,
+        client: client,
+      ),
+      AiProvider.gemini => GeminiClient(
+        apiKey: key,
+        model: model,
+        client: client,
+      ),
+      AiProvider.openrouter => OpenRouterClient(
+        apiKey: key,
+        modelId: openRouterModel,
+        client: client,
+      ),
+    };
   }
 
   /// Records what an AI request cost.

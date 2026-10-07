@@ -133,6 +133,12 @@ void main() {
     expect(find.textContaining('1 lowongan'), findsOneWidget);
 
     await openPage(tester, 'Pengaturan');
+    // The AI settings come first, so scroll down to this section.
+    await tester.dragUntilVisible(
+      find.text('1 lowongan disembunyikan'),
+      find.byType(ListView),
+      const Offset(0, -300),
+    );
     expect(find.text('1 lowongan disembunyikan'), findsOneWidget);
     await tester.tap(find.text('Tampilkan semua lagi'));
     await tester.pumpAndSettle();

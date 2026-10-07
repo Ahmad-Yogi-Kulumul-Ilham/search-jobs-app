@@ -5,7 +5,7 @@ import 'package:search_jobs_backend/search_jobs_backend.dart';
 import '../../app_services.dart';
 import '../common.dart';
 
-/// Reviews the user's CV against one job with Claude, and drafts a cover
+/// Reviews the user's CV against one job with AI, and drafts a cover
 /// letter for it.
 class ReviewPanel extends StatefulWidget {
   const ReviewPanel({
@@ -104,7 +104,8 @@ class _ReviewPanelState extends State<ReviewPanel> {
     final theme = Theme.of(context);
     final cvs = _services.database.cvs.all();
     final cv = _selectedCv(cvs);
-    final hasKey = _services.apiKey != null;
+    final hasKey = _services.aiReady;
+    final provider = _services.aiModel.provider;
     final stored = cv == null
         ? null
         : _services.database.cvs
@@ -133,9 +134,12 @@ class _ReviewPanelState extends State<ReviewPanel> {
                 'dengan lowongan ini.',
               )
             else if (!hasKey)
-              const Text(
-                'Masukkan API key Claude di Pengaturan untuk memakai review '
-                'dengan AI.',
+              Text(
+                provider == AiProvider.openrouter && _services.apiKey != null
+                    ? 'Isi ID model OpenRouter di Pengaturan untuk memakai '
+                          'review dengan AI.'
+                    : 'Masukkan API key ${provider.shortName} di Pengaturan '
+                          'untuk memakai review dengan AI.',
               )
             else
               Wrap(
@@ -179,8 +183,8 @@ class _ReviewPanelState extends State<ReviewPanel> {
             if (_busy) ...[
               const SizedBox(height: 8),
               Text(
-                'Claude sedang membaca CV dan lowongan. Biasanya butuh '
-                'setengah sampai dua menit.',
+                '${provider.shortName} sedang membaca CV dan lowongan. '
+                'Biasanya butuh setengah sampai dua menit.',
                 style: theme.textTheme.bodySmall,
               ),
             ],

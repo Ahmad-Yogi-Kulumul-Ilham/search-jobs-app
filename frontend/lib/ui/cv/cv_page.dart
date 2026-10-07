@@ -129,8 +129,8 @@ class CvPage extends StatelessWidget {
                     padding: const EdgeInsets.only(top: 4),
                     child: Text(
                       'CV tersimpan di komputer ini. Saat Anda meminta review '
-                      'atau draf, CV dikirim ke Claude (Anthropic) untuk '
-                      'diproses.',
+                      'atau draf, CV dikirim ke '
+                      '${services.aiModel.provider.label} untuk diproses.',
                       style: theme.textTheme.bodySmall,
                     ),
                   ),

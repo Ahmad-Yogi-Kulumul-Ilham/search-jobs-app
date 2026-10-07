@@ -4,7 +4,8 @@ import 'package:search_jobs_backend/search_jobs_backend.dart';
 import '../../app_services.dart';
 import '../common.dart';
 
-/// The Claude API key and model used for CV reviews and drafts.
+/// The AI provider, its API key, and the model used for CV reviews and
+/// drafts.
 class _AiSettings extends StatefulWidget {
   const _AiSettings({required this.services});
 
@@ -16,43 +17,97 @@ class _AiSettings extends StatefulWidget {
 
 class _AiSettingsState extends State<_AiSettings> {
   final _key = TextEditingController();
+  late final TextEditingController _openRouterModel;
+
+  /// The company name as it appears on its key page.
+  static const _company = {
+    AiProvider.anthropic: 'Anthropic',
+    AiProvider.openai: 'OpenAI',
+    AiProvider.gemini: 'Google Gemini',
+    AiProvider.openrouter: 'OpenRouter',
+  };
+
+  @override
+  void initState() {
+    super.initState();
+    _openRouterModel = TextEditingController(
+      text: widget.services.openRouterModel,
+    );
+  }
 
   @override
   void dispose() {
     _key.dispose();
+    _openRouterModel.dispose();
     super.dispose();
   }
 
-  void _saveKey() {
+  void _saveKey(AiProvider provider) {
     final key = _key.text.trim();
     if (key.isEmpty) return;
-    if (!key.startsWith('sk-ant-')) {
+    if (!key.startsWith(provider.keyPrefix)) {
       showMessage(
         context,
-        'API key Anthropic biasanya diawali "sk-ant-". Periksa lagi.',
+        'API key ${_company[provider]} biasanya diawali '
+        '"${provider.keyPrefix}". Periksa lagi.',
       );
       return;
     }
-    widget.services.setApiKey(key);
+    widget.services.setApiKey(key, provider: provider);
     _key.clear();
     showMessage(context, 'API key tersimpan dan terenkripsi.');
+  }
+
+  void _saveOpenRouterModel() {
+    final id = _openRouterModel.text.trim();
+    if (!id.contains('/')) {
+      showMessage(
+        context,
+        'ID model OpenRouter berbentuk penyedia/nama, misalnya '
+        'deepseek/deepseek-chat.',
+      );
+      return;
+    }
+    widget.services.openRouterModel = id;
+    showMessage(context, 'Model $id dipakai.');
   }
 
   @override
   Widget build(BuildContext context) {
     final services = widget.services;
-    final key = services.apiKey;
+    final model = services.aiModel;
+    final provider = model.provider;
+    final key = services.apiKeyFor(provider);
     final theme = Theme.of(context);
+    final small = theme.textTheme.bodySmall?.copyWith(
+      color: theme.colorScheme.onSurfaceVariant,
+    );
     return Column(
       crossAxisAlignment: CrossAxisAlignment.start,
       children: [
-        const SectionTitle('AI (Claude)'),
+        const SectionTitle('AI'),
         const Text(
-          'Dipakai untuk review CV, cover letter, dan draf jawaban. Butuh API '
-          'key dari console.anthropic.com (berbeda dari langganan Claude Pro) '
-          'dengan saldo terisi; biaya dihitung per pemakaian.',
+          'Dipakai untuk review CV, cover letter, dan draf jawaban. Pilih '
+          'penyedia, lalu masukkan API key-nya. API key berbeda dari '
+          'langganan seperti ChatGPT Plus, Gemini Advanced, atau Claude Pro: '
+          'biayanya dihitung per pemakaian.',
         ),
-        const SizedBox(height: 12),
+        const SizedBox(height: 14),
+        DropdownMenu<AiProvider>(
+          label: const Text('Penyedia'),
+          initialSelection: provider,
+          width: 420,
+          dropdownMenuEntries: [
+            for (final option in AiProvider.values)
+              DropdownMenuEntry(value: option, label: option.label),
+          ],
+          onSelected: (option) {
+            if (option != null && option != provider) {
+              services.aiModel = option.defaultModel;
+            }
+          },
+        ),
+        const SizedBox(height: 14),
         if (key != null)
           Row(
             children: [
@@ -60,11 +115,12 @@ class _AiSettingsState extends State<_AiSettings> {
               const SizedBox(width: 8),
               Expanded(
                 child: Text(
-                  'API key tersimpan: sk-ant-…${key.substring(key.length - 4)}',
+                  'API key tersimpan: ${provider.keyPrefix}…'
+                  '${key.substring(key.length - 4)}',
                 ),
               ),
               TextButton(
-                onPressed: () => services.setApiKey(null),
+                onPressed: () => services.setApiKey(null, provider: provider),
                 child: const Text('Hapus'),
               ),
             ],
@@ -74,40 +130,82 @@ class _AiSettingsState extends State<_AiSettings> {
             children: [
               Expanded(
                 child: TextField(
+                  key: ValueKey('key-$provider'),
                   controller: _key,
                   obscureText: true,
-                  onSubmitted: (_) => _saveKey(),
+                  onSubmitted: (_) => _saveKey(provider),
+                  decoration: InputDecoration(
+                    labelText: 'API key ${_company[provider]}',
+                    hintText: '${provider.keyPrefix}…',
+                    border: const OutlineInputBorder(),
+                    isDense: true,
+                  ),
+                ),
+              ),
+              const SizedBox(width: 10),
+              FilledButton(
+                onPressed: () => _saveKey(provider),
+                child: const Text('Simpan'),
+              ),
+            ],
+          ),
+        const SizedBox(height: 6),
+        Text(
+          'Buat API key dan isi saldo di ${provider.consoleUrl}.'
+          '${provider == AiProvider.gemini ? ' Gemini punya kuota gratis, '
+                    'tetapi Google dapat memakai data dari kuota gratis '
+                    'untuk meningkatkan layanannya.' : ''}',
+          style: small,
+        ),
+        const SizedBox(height: 14),
+        if (provider == AiProvider.openrouter)
+          Row(
+            crossAxisAlignment: CrossAxisAlignment.start,
+            children: [
+              Expanded(
+                child: TextField(
+                  controller: _openRouterModel,
+                  onSubmitted: (_) => _saveOpenRouterModel(),
                   decoration: const InputDecoration(
-                    labelText: 'API key Anthropic',
-                    hintText: 'sk-ant-…',
+                    labelText: 'ID model OpenRouter',
+                    hintText: 'contoh: deepseek/deepseek-chat',
+                    helperText:
+                        'Lihat daftarnya di openrouter.ai/models. Biaya '
+                        'diambil dari tagihan OpenRouter.',
                     border: OutlineInputBorder(),
                     isDense: true,
                   ),
                 ),
               ),
               const SizedBox(width: 10),
-              FilledButton(onPressed: _saveKey, child: const Text('Simpan')),
+              FilledButton.tonal(
+                onPressed: _saveOpenRouterModel,
+                child: const Text('Pakai model'),
+              ),
             ],
+          )
+        else
+          DropdownMenu<AiModel>(
+            // A new provider starts a fresh menu on its default model.
+            key: ValueKey(provider),
+            label: const Text('Model'),
+            initialSelection: model,
+            width: 420,
+            dropdownMenuEntries: [
+              for (final option in provider.models)
+                DropdownMenuEntry(value: option, label: option.label),
+            ],
+            onSelected: (option) {
+              if (option != null) services.aiModel = option;
+            },
           ),
-        const SizedBox(height: 14),
-        DropdownMenu<AiModel>(
-          label: const Text('Model'),
-          initialSelection: services.aiModel,
-          width: 420,
-          dropdownMenuEntries: [
-            for (final model in AiModel.values)
-              DropdownMenuEntry(value: model, label: model.label),
-          ],
-          onSelected: (model) {
-            if (model != null) services.aiModel = model;
-          },
-        ),
         const SizedBox(height: 8),
         Text(
-          'Total biaya AI sejauh ini: '
+          'Setiap review mengirim CV dan teks lowongan ke '
+          '${provider.shortName}. Total biaya AI sejauh ini: '
           '${services.formatUsd(services.database.cvs.totalCostUsd())}. '
           'API key disimpan terenkripsi dengan akun Windows Anda.',
-          style: theme.textTheme.bodySmall,
+          style: small,
         ),
       ],
     );

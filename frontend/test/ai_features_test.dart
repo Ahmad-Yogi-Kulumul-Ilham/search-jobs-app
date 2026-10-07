@@ -6,6 +6,7 @@ import 'package:flutter/material.dart';
 import 'package:flutter_test/flutter_test.dart';
 import 'package:http/http.dart' as http;
 import 'package:search_jobs_app/secret_box.dart';
+import 'package:search_jobs_backend/search_jobs_backend.dart';
 
 import 'support.dart';
 
@@ -92,6 +93,110 @@ void main() {
     await tester.tap(find.widgetWithText(TextButton, 'Hapus'));
     await tester.pumpAndSettle();
     expect(services.apiKey, isNull);
+  });
+
+  testWidgets('switches to Gemini with its own key and reviews with it', (
+    tester,
+  ) async {
+    Uri? url;
+    final services = testServices(
+      tester,
+      jobs: [testJob('1', title: 'Flutter Developer', location: 'Worldwide')],
+      onClaude: (http.Request sent) async {
+        url = sent.url;
+        return http.Response.bytes(
+          utf8.encode(
+            jsonEncode({
+              'candidates': [
+                {
+                  'finishReason': 'STOP',
+                  'content': {
+                    'parts': [
+                      {'text': jsonEncode(_reviewJson)},
+                    ],
+                  },
+                },
+              ],
+              'usageMetadata': {
+                'promptTokenCount': 10000,
+                'candidatesTokenCount': 2000,
+              },
+            }),
+          ),
+          200,
+        );
+      },
+    );
+    services.database.cvs.add(
+      name: 'CV Utama',
+      fileName: 'cv.pdf',
+      bytes: _pdf,
+      now: DateTime.now(),
+    );
+    services.setApiKey('sk-ant-old-key1');
+    await pumpApp(tester, services);
+    await openPage(tester, 'Pengaturan');
+
+    await tester.tap(find.byType(DropdownMenu<AiProvider>));
+    await tester.pumpAndSettle();
+    await tester.tap(find.text('Gemini (Google)').last);
+    await tester.pumpAndSettle();
+    expect(services.aiModel, AiModel.gemini38Flash);
+    // The Anthropic key stays saved but is not the one in use.
+    expect(services.apiKey, isNull);
+    expect(services.apiKeyFor(AiProvider.anthropic), 'sk-ant-old-key1');
+
+    final keyField = find.widgetWithText(TextField, 'API key Google Gemini');
+    await tester.enterText(keyField, 'sk-proj-wrong');
+    await tester.tap(find.widgetWithText(FilledButton, 'Simpan'));
+    await tester.pumpAndSettle();
+    expect(find.textContaining('diawali "AIza"'), findsOneWidget);
+
+    await tester.enterText(keyField, 'AIzaSyTest1234');
+    await tester.tap(find.widgetWithText(FilledButton, 'Simpan'));
+    await tester.pumpAndSettle();
+    expect(find.text('API key tersimpan: AIza…1234'), findsOneWidget);
+    expect(services.apiKey, 'AIzaSyTest1234');
+
+    await openPage(tester, 'Lowongan');
+    await tester.tap(find.text('Flutter Developer'));
+    await tester.pumpAndSettle();
+    await tester.tap(find.text('Review dengan AI'));
+    await tester.pumpAndSettle();
+
+    expect(url!.path, '/v1beta/models/gemini-3.8-flash:generateContent');
+    expect(find.text('82%'), findsNWidgets(2));
+    // 10k input at USD 0,75/M plus 2k output at USD 3,75/M.
+    expect(services.database.cvs.totalCostUsd(), closeTo(0.015, 1e-9));
+  });
+
+  testWidgets('OpenRouter needs a model id before reviews can run', (
+    tester,
+  ) async {
+    final services = testServices(tester);
+    await pumpApp(tester, services);
+    await openPage(tester, 'Pengaturan');
+
+    await tester.tap(find.byType(DropdownMenu<AiProvider>));
+    await tester.pumpAndSettle();
+    await tester.tap(find.textContaining('OpenRouter (').last);
+    await tester.pumpAndSettle();
+    services.setApiKey('sk-or-v1-test');
+    await tester.pumpAndSettle();
+    expect(services.aiReady, isFalse);
+
+    final modelField = find.widgetWithText(TextField, 'ID model OpenRouter');
+    await tester.enterText(modelField, 'deepseek');
+    await tester.tap(find.text('Pakai model'));
+    await tester.pumpAndSettle();
+    expect(find.textContaining('berbentuk penyedia/nama'), findsOneWidget);
+
+    await tester.enterText(modelField, 'deepseek/deepseek-chat');
+    await tester.tap(find.text('Pakai model'));
+    await tester.pumpAndSettle();
+    expect(services.openRouterModel, 'deepseek/deepseek-chat');
+    expect(services.aiReady, isTrue);
+    expect(services.reviewer()!.provider, AiProvider.openrouter);
   });
 
   testWidgets('reviews a CV against a job and shows the score', (tester) async {
