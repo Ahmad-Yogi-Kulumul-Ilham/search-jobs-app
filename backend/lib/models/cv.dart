@@ -43,7 +43,7 @@ class Cv {
   final Uint8List bytes;
 
   /// Text extracted locally, for formats that have it (DOCX and plain text).
-  /// Empty for PDF, which Claude reads directly.
+  /// Empty for PDF, which the AI model reads directly.
   final String text;
   final DateTime createdAt;
 }

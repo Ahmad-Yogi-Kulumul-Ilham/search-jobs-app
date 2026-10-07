@@ -1,8 +1,6 @@
-import 'dart:convert';
-
 import '../models/cv.dart';
 import '../models/job.dart';
-import 'claude_client.dart';
+import 'ai_client.dart';
 
 /// One suggested change to the CV.
 class CvSuggestion {
@@ -107,12 +105,15 @@ class AiUsage {
   final double costUsd;
 }
 
-/// The AI features built on Claude: reviewing a CV against a job, drafting a
-/// cover letter, and drafting answers to application questions.
+/// The AI features: reviewing a CV against a job, drafting a cover letter,
+/// and drafting answers to application questions, on whichever provider's
+/// model the user picked.
 class CvReviewer {
   CvReviewer(this._client);
 
-  final ClaudeClient _client;
+  final AiClient _client;
+
+  AiProvider get provider => _client.provider;
 
   Future<(CvReview, AiUsage)> review({
     required Cv cv,
@@ -124,7 +125,7 @@ class CvReviewer {
       content: [
         _cvBlock(cv),
         _jobBlock(job, jobDescription),
-        {'type': 'text', 'text': 'Review my CV against this job posting.'},
+        const AiText('Review my CV against this job posting.'),
       ],
       schema: _reviewSchema,
     );
@@ -141,7 +142,7 @@ class CvReviewer {
       content: [
         _cvBlock(cv),
         _jobBlock(job, jobDescription),
-        {'type': 'text', 'text': 'Write my cover letter for this job.'},
+        const AiText('Write my cover letter for this job.'),
       ],
       schema: _coverLetterSchema,
       effort: 'medium',
@@ -168,7 +169,7 @@ class CvReviewer {
       content: [
         _cvBlock(cv),
         if (job != null) _jobBlock(job, jobDescription),
-        {'type': 'text', 'text': 'Question:\n$question'},
+        AiText('Question:\n$question'),
       ],
       schema: _answerSchema,
       effort: 'medium',
@@ -180,37 +181,28 @@ class CvReviewer {
       AiUsage(model: result.model, costUsd: result.costUsd);
 }
 
-/// The CV as a document block: a PDF is passed as is for Claude to read,
-/// other formats as their extracted text.
-Map<String, Object?> _cvBlock(Cv cv) => {
-  'type': 'document',
-  'title': 'My CV (${cv.fileName})',
-  'source': cv.format == CvFormat.pdf
-      ? {
-          'type': 'base64',
-          'media_type': 'application/pdf',
-          'data': base64Encode(cv.bytes),
-        }
-      : {'type': 'text', 'media_type': 'text/plain', 'data': cv.text},
-};
+/// The CV as a document: a PDF is passed as is for the model to read, other
+/// formats as their extracted text.
+AiDocument _cvBlock(Cv cv) => cv.format == CvFormat.pdf
+    ? AiDocument.pdf(
+        title: 'My CV (${cv.fileName})',
+        pdf: cv.bytes,
+        fileName: cv.fileName,
+      )
+    : AiDocument.text(title: 'My CV (${cv.fileName})', text: cv.text);
 
-Map<String, Object?> _jobBlock(Job job, String description) => {
-  'type': 'document',
-  'title': 'Job posting: ${job.title}',
-  'source': {
-    'type': 'text',
-    'media_type': 'text/plain',
-    'data': [
-      'Title: ${job.title}',
-      if (job.company.isNotEmpty) 'Company: ${job.company}',
-      if (job.location.isNotEmpty) 'Location: ${job.location}',
-      if (job.jobType.isNotEmpty) 'Job type: ${job.jobType}',
-      if (job.salary.isNotEmpty) 'Salary: ${job.salary}',
-      '',
-      description.isEmpty ? '(No description provided.)' : description,
-    ].join('\n'),
-  },
-};
+AiDocument _jobBlock(Job job, String description) => AiDocument.text(
+  title: 'Job posting: ${job.title}',
+  text: [
+    'Title: ${job.title}',
+    if (job.company.isNotEmpty) 'Company: ${job.company}',
+    if (job.location.isNotEmpty) 'Location: ${job.location}',
+    if (job.jobType.isNotEmpty) 'Job type: ${job.jobType}',
+    if (job.salary.isNotEmpty) 'Salary: ${job.salary}',
+    '',
+    description.isEmpty ? '(No description provided.)' : description,
+  ].join('\n'),
+);
 
 const _honesty =
     'Never add experience, skills, employers, titles, dates, or numbers that '
