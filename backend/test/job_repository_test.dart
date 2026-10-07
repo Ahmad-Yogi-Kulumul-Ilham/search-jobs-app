@@ -416,5 +416,10 @@ void main() {
     // Sources are fetched again so the new salary columns get filled.
     expect(upgraded.jobs.lastFetchedAt('remoteok'), isNull);
     expect(upgraded.applications.all(), isEmpty);
+    // Stored jobs get their countries at once, without a new fetch.
+    expect(
+      upgraded.jobs.search(filter: const JobFilter(places: {'WW'})),
+      hasLength(1),
+    );
   });
 }

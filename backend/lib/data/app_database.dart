@@ -205,4 +205,15 @@ final List<void Function(Database)> _migrations = [
       checked_at INTEGER NOT NULL
     );
   '''),
+  (sql) {
+    sql.execute(
+      "ALTER TABLE jobs ADD COLUMN countries TEXT NOT NULL DEFAULT ''",
+    );
+    for (final row in sql.select('SELECT id, location FROM jobs')) {
+      sql.execute('UPDATE jobs SET countries = ? WHERE id = ?', [
+        storedPlaces(row['location'] as String),
+        row['id'],
+      ]);
+    }
+  },
 ];

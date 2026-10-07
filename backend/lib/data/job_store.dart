@@ -6,6 +6,7 @@ import '../models/application.dart';
 import '../models/job.dart';
 import '../models/salary.dart';
 import '../util/format.dart';
+import '../util/places.dart';
 import '../util/region.dart';
 import '../util/scam_check.dart';
 
@@ -17,6 +18,7 @@ class JobFilter {
     this.openToIndonesiaOnly = false,
     this.jobTypes = const {},
     this.withSalaryOnly = false,
+    this.places = const {},
   });
 
   /// Words that must all appear in the title, company, location, category,
@@ -31,12 +33,17 @@ class JobFilter {
   final Set<String> jobTypes;
   final bool withSalaryOnly;
 
+  /// [Place] codes, such as `US` or `R-EU`; a job whose location names any
+  /// of them is kept. Empty keeps every location.
+  final Set<String> places;
+
   /// How many filters are on, not counting the search words.
   int get activeCount =>
       (openToIndonesiaOnly ? 1 : 0) +
       (jobTypes.isEmpty ? 0 : 1) +
       (withSalaryOnly ? 1 : 0) +
-      (excludedSources.isEmpty ? 0 : 1);
+      (excludedSources.isEmpty ? 0 : 1) +
+      (places.isEmpty ? 0 : 1);
 
   JobFilter copyWith({
     String? query,
@@ -44,12 +51,14 @@ class JobFilter {
     bool? openToIndonesiaOnly,
     Set<String>? jobTypes,
     bool? withSalaryOnly,
+    Set<String>? places,
   }) => JobFilter(
     query: query ?? this.query,
     excludedSources: excludedSources ?? this.excludedSources,
     openToIndonesiaOnly: openToIndonesiaOnly ?? this.openToIndonesiaOnly,
     jobTypes: jobTypes ?? this.jobTypes,
     withSalaryOnly: withSalaryOnly ?? this.withSalaryOnly,
+    places: places ?? this.places,
   );
 
   factory JobFilter.fromJson(Map<String, Object?> json) {
@@ -62,6 +71,7 @@ class JobFilter {
       openToIndonesiaOnly: json['openToIndonesiaOnly'] == true,
       jobTypes: strings(json['jobTypes']),
       withSalaryOnly: json['withSalaryOnly'] == true,
+      places: strings(json['places']),
     );
   }
 
@@ -71,12 +81,15 @@ class JobFilter {
     'openToIndonesiaOnly': openToIndonesiaOnly,
     'jobTypes': jobTypes.toList(),
     'withSalaryOnly': withSalaryOnly,
+    'places': places.toList(),
   };
 
   /// A short Indonesian summary such as `"flutter" · bisa dari Indonesia`.
   String describe() => [
     if (query.trim().isNotEmpty) '"${query.trim()}"',
     if (openToIndonesiaOnly) 'bisa dari Indonesia',
+    if (places.isNotEmpty)
+      places.map((code) => placeByCode(code)?.name ?? code).join('/'),
     if (withSalaryOnly) 'ada gaji',
     if (jobTypes.isNotEmpty) jobTypes.join('/'),
     if (excludedSources.isNotEmpty)
@@ -114,8 +127,10 @@ class JobStore {
             id, source_id, title, company, url, location, category, tags,
             job_type, salary, salary_min, salary_max, salary_currency,
             salary_period, region_fit, scam_flags, description_html,
-            published_at, first_seen_at, last_seen_at
-          ) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)
+            published_at, first_seen_at, last_seen_at, countries
+          ) VALUES (
+            ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?
+          )
           ON CONFLICT (id) DO UPDATE SET
             title = excluded.title,
             company = excluded.company,
@@ -133,7 +148,8 @@ class JobStore {
             scam_flags = excluded.scam_flags,
             description_html = excluded.description_html,
             published_at = excluded.published_at,
-            last_seen_at = excluded.last_seen_at
+            last_seen_at = excluded.last_seen_at,
+            countries = excluded.countries
           ''',
           [
             job.id,
@@ -156,6 +172,7 @@ class JobStore {
             job.publishedAt?.millisecondsSinceEpoch,
             now,
             now,
+            storedPlaces(job.location),
           ],
         );
       }
@@ -267,6 +284,14 @@ class JobStore {
       args.addAll(filter.jobTypes.map(_contains));
     }
     if (filter.withSalaryOnly) conditions.add("j.salary <> ''");
+    if (filter.places.isNotEmpty) {
+      final any = List.filled(
+        filter.places.length,
+        'j.countries LIKE ?',
+      ).join(' OR ');
+      conditions.add('($any)');
+      args.addAll(filter.places.map((code) => '%,$code,%'));
+    }
     final rows = _db.select(
       '''
       SELECT $_listColumns
@@ -278,6 +303,21 @@ class JobStore {
       [...args, limit],
     );
     return [for (final row in rows) _jobFromRow(row)];
+  }
+
+  /// How many visible jobs name each place, for the country filter.
+  Map<String, int> placeCounts() {
+    final counts = <String, int>{};
+    for (final row in _db.select('''
+      SELECT countries FROM jobs
+      WHERE hidden = 0 AND countries <> ''
+        AND lower(company) NOT IN (SELECT name FROM blocked_companies)
+    ''')) {
+      for (final code in (row['countries'] as String).split(',')) {
+        if (code.isNotEmpty) counts[code] = (counts[code] ?? 0) + 1;
+      }
+    }
+    return counts;
   }
 
   /// The stored job with [jobId], hidden or not, without its description.
@@ -339,6 +379,13 @@ const _listColumns = '''
   a.status AS tracked_status,
   (SELECT MAX(score) FROM reviews r WHERE r.job_id = j.id) AS match_score
 ''';
+
+/// The places a location names, stored as `,US,CA,` so a filter can match
+/// one code with `LIKE '%,US,%'`; empty when it names none.
+String storedPlaces(String location) {
+  final codes = placesIn(location);
+  return codes.isEmpty ? '' : ',${codes.join(',')},';
+}
 
 /// Scam warnings for a job about to be stored, read from its description.
 List<String> warningsFor(Job job) => scamWarnings(
