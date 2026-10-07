@@ -104,6 +104,13 @@ class JobRepository {
   Future<int> probe(JobSource source) async =>
       (await source.fetch(_client)).length;
 
+  /// Finds new sources to suggest, checking each with a light fetch.
+  late final SourceDiscovery discovery = SourceDiscovery(
+    database: database,
+    fetch: (source) => source.fetch(_client, listingOnly: true),
+    clock: _clock,
+  );
+
   /// Rates change once per working day, so one fetch a day is plenty. A
   /// failure here only means salaries keep the previous conversion.
   Future<void> _refreshRates() async {

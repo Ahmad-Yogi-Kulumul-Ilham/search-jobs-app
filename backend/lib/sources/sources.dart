@@ -15,6 +15,8 @@ export 'jobicy_source.dart';
 export 'remote_ok_source.dart';
 export 'remotive_source.dart';
 export 'rss_source.dart';
+export 'source_discovery.dart';
+export 'suggested_sources.dart';
 export 'we_work_remotely_source.dart';
 
 /// The job sites the app reads out of the box, in display order.

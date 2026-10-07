@@ -2,13 +2,18 @@
 /// storing jobs locally, and searching them. Pure Dart, no Flutter.
 library;
 
+export 'ai/ai_client.dart';
 export 'ai/claude_client.dart';
 export 'ai/cv_reviewer.dart';
+export 'ai/gemini_client.dart';
+export 'ai/openai_client.dart';
+export 'ai/openrouter_client.dart';
 export 'data/alert_store.dart';
 export 'data/announcer.dart';
 export 'data/app_database.dart';
 export 'data/application_store.dart';
 export 'data/cv_store.dart';
+export 'data/discovery_store.dart';
 export 'data/exchange_rates.dart';
 export 'data/job_repository.dart';
 export 'data/job_store.dart';
