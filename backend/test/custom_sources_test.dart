@@ -192,4 +192,59 @@ void main() {
       expect(() => source.parse('{"jobs": []}'), throwsFormatException);
     });
   });
+
+  group('suggestedSources', () {
+    test('every suggestion is unique and storable as typed', () {
+      final keys = suggestedSources.map((s) => '${s.kind.name}:${s.value}');
+      expect(keys.toSet(), hasLength(suggestedSources.length));
+      for (final suggestion in suggestedSources) {
+        expect(suggestion.name, isNotEmpty);
+        expect(suggestion.description, isNotEmpty);
+        // The same value pasted into "Tambah sumber" is read the same way,
+        // so a suggestion and a manually added copy are one source.
+        final link = switch (suggestion.kind) {
+          CustomSourceKind.rss => suggestion.value,
+          CustomSourceKind.greenhouse =>
+            'https://boards.greenhouse.io/${suggestion.value}',
+          CustomSourceKind.lever => 'https://jobs.lever.co/${suggestion.value}',
+          CustomSourceKind.ashby =>
+            'https://jobs.ashbyhq.com/${suggestion.value}',
+        };
+        final parsed = parseSourceInput(link)!;
+        expect(parsed.kind, suggestion.kind, reason: suggestion.name);
+        expect(parsed.value, suggestion.value, reason: suggestion.name);
+      }
+      for (final group in SuggestionGroup.values) {
+        expect(suggestedSources.where((s) => s.group == group), isNotEmpty);
+      }
+    });
+
+    test('recognizes a source the user already added', () {
+      final canonical = suggestedSources.firstWhere(
+        (s) => s.name == 'Canonical',
+      );
+      expect(
+        canonical.matches(
+          const CustomSource(
+            id: 3,
+            kind: CustomSourceKind.greenhouse,
+            name: 'Canonical Ltd',
+            value: 'Canonical',
+          ),
+        ),
+        isTrue,
+      );
+      expect(
+        canonical.matches(
+          const CustomSource(
+            id: 4,
+            kind: CustomSourceKind.lever,
+            name: 'Canonical',
+            value: 'canonical',
+          ),
+        ),
+        isFalse,
+      );
+    });
+  });
 }
