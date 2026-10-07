@@ -6,6 +6,7 @@ Aplikasi desktop Windows untuk mencari lowongan kerja remote dari beberapa situs
 
 - Mengambil lowongan dari Remote OK, Jobicy, We Work Remotely, dan Remotive.
 - Menambah sumber sendiri: feed RSS, atau halaman karier perusahaan di Greenhouse, Lever, dan Ashby (hanya lowongan remote yang diambil).
+- Temukan sumber: daftar sumber pilihan, plus pencarian sumber baru. "Cari dari lowongan" (gratis) memeriksa apakah perusahaan di lowongan yang sudah masuk punya halaman karier di Greenhouse, Lever, atau Ashby, 40 perusahaan per klik. "Cari dengan AI" mencari situs dan perusahaan baru di web memakai AI yang dipilih di Pengaturan. Setiap temuan diambil sekali untuk dicek sebelum ditampilkan; centang yang mau ditambahkan.
 - Pencarian berdasarkan posisi, perusahaan, lokasi, kategori, atau keahlian.
 - Filter: bisa dilamar dari Indonesia, ada info gaji, jenis kerja, dan sumber.
 - Gaji dikonversi ke perkiraan Rupiah per bulan (kurs harian Bank Sentral Eropa lewat Frankfurter).
@@ -16,7 +17,7 @@ Aplikasi desktop Windows untuk mencari lowongan kerja remote dari beberapa situs
 - Pengingat follow-up (7 hari tanpa kabar setelah melamar) dan interview dalam 24 jam, di aplikasi dan lewat notifikasi.
 - Peringatan lowongan mencurigakan: meminta bayaran, kontak hanya lewat Telegram/WhatsApp, pembayaran lewat kripto atau kartu hadiah, janji penghasilan besar, email rekrutmen pribadi, atau tanpa nama perusahaan.
 - CV: unggah beberapa versi (PDF atau DOCX).
-- Review AI dengan Claude: skor kecocokan CV dengan lowongan, kekuatan, kekurangan, kata kunci yang hilang, saran penulisan ulang yang bisa disalin, dan cek apakah lowongan menerima pelamar dari Indonesia. Skor tampil di daftar lowongan.
+- Review AI dengan Claude, ChatGPT, Gemini, atau model lain lewat OpenRouter: skor kecocokan CV dengan lowongan, kekuatan, kekurangan, kata kunci yang hilang, saran penulisan ulang yang bisa disalin, dan cek apakah lowongan menerima pelamar dari Indonesia. Skor tampil di daftar lowongan.
 - Draf cover letter dan bank jawaban untuk pertanyaan formulir yang sering muncul, dengan draf dari AI.
 - Bantuan mengisi formulir lamaran: halaman lamaran dibuka di browser dalam aplikasi (WebView2), lalu "Isi otomatis" mengisi data diri, melampirkan CV, dan mendaftar pertanyaan yang belum terjawab beserta jawaban dari bank jawaban atau draf AI. Paling cocok untuk formulir Greenhouse, Lever, dan Ashby. Aplikasi tidak pernah menekan tombol kirim; Anda memeriksa lalu mengirim sendiri, kemudian menandainya "Dilamar".
 - Data tersimpan lokal (SQLite), jadi daftar terakhir tetap bisa dibuka tanpa internet.
@@ -76,12 +77,21 @@ Lowongan berasal dari API dan feed publik [Remote OK](https://remoteok.com), [Jo
 
 ## Fitur AI
 
-Fitur AI memakai Claude API dan butuh API key dari [console.anthropic.com](https://console.anthropic.com) dengan saldo terisi. Ini berbeda dari langganan Claude Pro; biaya dihitung per pemakaian dan ditampilkan setelah setiap review. Masukkan key di Pengaturan. Key disimpan terenkripsi dengan Windows DPAPI, jadi hanya akun Windows Anda di komputer ini yang bisa membukanya.
+Di Pengaturan, pilih penyedia AI lalu masukkan API key-nya. API key berbeda dari langganan seperti Claude Pro, ChatGPT Plus, atau Gemini Advanced; biaya dihitung per pemakaian dan ditampilkan setelah setiap review. Tiap penyedia punya key sendiri, disimpan terenkripsi dengan Windows DPAPI, jadi hanya akun Windows Anda di komputer ini yang bisa membukanya.
 
-Model bisa dipilih di Pengaturan: Claude Opus 5.5 (bawaan, paling teliti), Claude Sonnet 5.5, atau Claude Haiku 4.5 (paling hemat). Setiap review mengirim CV dan teks lowongan ke Anthropic. AI diminta hanya menyusun ulang isi CV, tidak menambah pengalaman yang tidak ada.
+| Penyedia | API key dari | Model |
+| --- | --- | --- |
+| Claude (Anthropic) | [console.anthropic.com](https://console.anthropic.com) | Opus 5.5 (bawaan), Sonnet 5.5, Haiku 4.5 |
+| ChatGPT (OpenAI) | [platform.openai.com](https://platform.openai.com) | GPT-6 Astra, GPT-6.1 Sol, GPT-6 Luna |
+| Gemini (Google) | [aistudio.google.com](https://aistudio.google.com) | Gemini 3.1 Pro (preview), 3.8 Flash, 3.1 Flash-Lite |
+| OpenRouter | [openrouter.ai](https://openrouter.ai) | Model apa saja yang bisa menjawab dalam format JSON, misalnya DeepSeek, Llama, Qwen, atau Mistral. Isi ID modelnya, seperti `deepseek/deepseek-chat`. |
+
+Biaya untuk Claude, ChatGPT, dan Gemini diperkirakan dari jumlah token dan harga resmi per Oktober 2026; biaya OpenRouter diambil dari tagihannya sendiri. Gemini punya kuota gratis, tetapi Google dapat memakai data dari kuota gratis untuk meningkatkan layanannya.
+
+Setiap review mengirim CV dan teks lowongan ke penyedia yang dipilih. AI diminta hanya menyusun ulang isi CV, tidak menambah pengalaman yang tidak ada.
 
 ## Batasan yang diketahui
 
-- Fitur AI sudah diuji dengan server tiruan, belum dengan API key asli.
+- Fitur AI sudah diuji dengan server tiruan untuk semua penyedia, belum dengan API key asli.
 - Pengisi formulir diuji di Chromium dengan formulir contoh yang meniru Greenhouse, Lever, dan Ashby. Formulir asli bisa berbeda dan berubah sewaktu-waktu, jadi selalu periksa hasilnya sebelum mengirim.
 - Lowongan dari situs agregator (Remote OK, We Work Remotely, dan sebagainya) sering mengarah ke halaman perusahaan dengan formulir yang beragam. Di sana pengisian otomatis bisa sebagian saja.
