@@ -38,6 +38,12 @@ class GreenhouseSource extends CompanyBoardSource {
     'https://boards-api.greenhouse.io/v1/boards/$board/jobs?content=true',
   );
 
+  // Without content the answer is a fraction of the size: some boards list
+  // hundreds of jobs with long descriptions.
+  @override
+  Uri get listingEndpoint =>
+      Uri.parse('https://boards-api.greenhouse.io/v1/boards/$board/jobs');
+
   @override
   List<Job> parse(String body) {
     final jobs = <Job>[];

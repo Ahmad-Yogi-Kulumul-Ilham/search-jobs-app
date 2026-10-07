@@ -25,6 +25,10 @@ abstract class JobSource {
 
   Uri get endpoint;
 
+  /// A lighter address that lists the same jobs without full descriptions,
+  /// for checking a source rather than storing its jobs.
+  Uri get listingEndpoint => endpoint;
+
   /// The shortest gap between two fetches that the source's terms allow.
   Duration get minRefreshInterval => const Duration(hours: 1);
 
@@ -32,10 +36,14 @@ abstract class JobSource {
   /// the body does not have the expected shape.
   List<Job> parse(String body);
 
-  Future<List<Job>> fetch(http.Client client) async {
+  /// Fetches the jobs; with [listingOnly], from [listingEndpoint].
+  Future<List<Job>> fetch(
+    http.Client client, {
+    bool listingOnly = false,
+  }) async {
     final response = await client
         .get(
-          endpoint,
+          listingOnly ? listingEndpoint : endpoint,
           headers: const {
             'User-Agent': 'search-jobs-app/1.0 (personal desktop job reader)',
             'Accept': 'application/json, application/rss+xml, */*',
