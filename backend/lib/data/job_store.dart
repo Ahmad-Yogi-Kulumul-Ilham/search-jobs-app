@@ -9,6 +9,7 @@ import '../util/format.dart';
 import '../util/places.dart';
 import '../util/region.dart';
 import '../util/scam_check.dart';
+import '../util/seniority.dart';
 
 /// What the job list is narrowed to.
 class JobFilter {
@@ -19,6 +20,7 @@ class JobFilter {
     this.jobTypes = const {},
     this.withSalaryOnly = false,
     this.places = const {},
+    this.levels = const {},
   });
 
   /// Words that must all appear in the title, company, location, category,
@@ -37,13 +39,18 @@ class JobFilter {
   /// of them is kept. Empty keeps every location.
   final Set<String> places;
 
+  /// [Seniority] names to keep, plus [unspecifiedSeniority] for titles that
+  /// name no level. Empty keeps every level.
+  final Set<String> levels;
+
   /// How many filters are on, not counting the search words.
   int get activeCount =>
       (openToIndonesiaOnly ? 1 : 0) +
       (jobTypes.isEmpty ? 0 : 1) +
       (withSalaryOnly ? 1 : 0) +
       (excludedSources.isEmpty ? 0 : 1) +
-      (places.isEmpty ? 0 : 1);
+      (places.isEmpty ? 0 : 1) +
+      (levels.isEmpty ? 0 : 1);
 
   JobFilter copyWith({
     String? query,
@@ -52,6 +59,7 @@ class JobFilter {
     Set<String>? jobTypes,
     bool? withSalaryOnly,
     Set<String>? places,
+    Set<String>? levels,
   }) => JobFilter(
     query: query ?? this.query,
     excludedSources: excludedSources ?? this.excludedSources,
@@ -59,6 +67,7 @@ class JobFilter {
     jobTypes: jobTypes ?? this.jobTypes,
     withSalaryOnly: withSalaryOnly ?? this.withSalaryOnly,
     places: places ?? this.places,
+    levels: levels ?? this.levels,
   );
 
   factory JobFilter.fromJson(Map<String, Object?> json) {
@@ -72,6 +81,7 @@ class JobFilter {
       jobTypes: strings(json['jobTypes']),
       withSalaryOnly: json['withSalaryOnly'] == true,
       places: strings(json['places']),
+      levels: strings(json['levels']),
     );
   }
 
@@ -82,6 +92,7 @@ class JobFilter {
     'jobTypes': jobTypes.toList(),
     'withSalaryOnly': withSalaryOnly,
     'places': places.toList(),
+    'levels': levels.toList(),
   };
 
   /// A short Indonesian summary such as `"flutter" · bisa dari Indonesia`.
@@ -90,6 +101,7 @@ class JobFilter {
     if (openToIndonesiaOnly) 'bisa dari Indonesia',
     if (places.isNotEmpty)
       places.map((code) => placeByCode(code)?.name ?? code).join('/'),
+    if (levels.isNotEmpty) levels.map(seniorityLabel).join('/'),
     if (withSalaryOnly) 'ada gaji',
     if (jobTypes.isNotEmpty) jobTypes.join('/'),
     if (excludedSources.isNotEmpty)
@@ -127,9 +139,9 @@ class JobStore {
             id, source_id, title, company, url, location, category, tags,
             job_type, salary, salary_min, salary_max, salary_currency,
             salary_period, region_fit, scam_flags, description_html,
-            published_at, first_seen_at, last_seen_at, countries
+            published_at, first_seen_at, last_seen_at, countries, seniority
           ) VALUES (
-            ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?
+            ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?
           )
           ON CONFLICT (id) DO UPDATE SET
             title = excluded.title,
@@ -149,7 +161,8 @@ class JobStore {
             description_html = excluded.description_html,
             published_at = excluded.published_at,
             last_seen_at = excluded.last_seen_at,
-            countries = excluded.countries
+            countries = excluded.countries,
+            seniority = excluded.seniority
           ''',
           [
             job.id,
@@ -173,6 +186,7 @@ class JobStore {
             now,
             now,
             storedPlaces(job.location),
+            seniorityOf(job.title)?.name ?? '',
           ],
         );
       }
@@ -292,6 +306,16 @@ class JobStore {
       conditions.add('($any)');
       args.addAll(filter.places.map((code) => '%,$code,%'));
     }
+    if (filter.levels.isNotEmpty) {
+      final marks = List.filled(filter.levels.length, '?').join(', ');
+      conditions.add('j.seniority IN ($marks)');
+      // Unlevelled titles are stored as an empty string.
+      args.addAll(
+        filter.levels.map(
+          (level) => level == unspecifiedSeniority ? '' : level,
+        ),
+      );
+    }
     final rows = _db.select(
       '''
       SELECT $_listColumns
@@ -319,6 +343,20 @@ class JobStore {
     }
     return counts;
   }
+
+  /// How many visible jobs have each level, keyed like [JobFilter.levels].
+  Map<String, int> levelCounts() => {
+    for (final row in _db.select('''
+      SELECT seniority, COUNT(*) AS n FROM jobs
+      WHERE hidden = 0
+        AND lower(company) NOT IN (SELECT name FROM blocked_companies)
+      GROUP BY seniority
+    '''))
+      (row['seniority'] as String).isEmpty
+              ? unspecifiedSeniority
+              : row['seniority'] as String:
+          row['n'] as int,
+  };
 
   /// The stored job with [jobId], hidden or not, without its description.
   Job? find(String jobId) {

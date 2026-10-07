@@ -384,6 +384,7 @@ void main() {
       DROP TABLE source_settings; DROP TABLE custom_sources; DROP TABLE settings;
       DROP TABLE jobs; DROP TABLE source_state;
       DROP TABLE discovered_sources; DROP TABLE discovery_checked;
+      DROP TABLE interview_preps;
       CREATE TABLE jobs (
         id TEXT PRIMARY KEY, source_id TEXT NOT NULL, title TEXT NOT NULL,
         company TEXT NOT NULL, url TEXT NOT NULL, location TEXT NOT NULL,

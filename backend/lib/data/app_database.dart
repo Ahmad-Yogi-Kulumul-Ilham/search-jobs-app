@@ -4,6 +4,7 @@ import 'package:sqlite3/sqlite3.dart';
 
 import '../models/job.dart';
 import '../util/region.dart';
+import '../util/seniority.dart';
 import 'alert_store.dart';
 import 'application_store.dart';
 import 'cv_store.dart';
@@ -212,6 +213,26 @@ final List<void Function(Database)> _migrations = [
     for (final row in sql.select('SELECT id, location FROM jobs')) {
       sql.execute('UPDATE jobs SET countries = ? WHERE id = ?', [
         storedPlaces(row['location'] as String),
+        row['id'],
+      ]);
+    }
+  },
+  (sql) {
+    sql.execute('''
+      ALTER TABLE jobs ADD COLUMN seniority TEXT NOT NULL DEFAULT '';
+      CREATE TABLE interview_preps (
+        job_id TEXT NOT NULL,
+        cv_id INTEGER NOT NULL,
+        result TEXT NOT NULL,
+        model TEXT NOT NULL,
+        cost_usd REAL NOT NULL,
+        created_at INTEGER NOT NULL,
+        PRIMARY KEY (job_id, cv_id)
+      );
+    ''');
+    for (final row in sql.select('SELECT id, title FROM jobs')) {
+      sql.execute('UPDATE jobs SET seniority = ? WHERE id = ?', [
+        seniorityOf(row['title'] as String)?.name ?? '',
         row['id'],
       ]);
     }
