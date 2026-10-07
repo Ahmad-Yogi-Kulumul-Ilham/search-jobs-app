@@ -33,4 +33,5 @@ export 'util/format.dart';
 export 'util/places.dart';
 export 'util/region.dart';
 export 'util/scam_check.dart';
+export 'util/seniority.dart';
 export 'util/work_hours.dart';
