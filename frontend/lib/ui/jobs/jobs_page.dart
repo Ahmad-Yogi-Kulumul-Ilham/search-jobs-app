@@ -134,6 +134,7 @@ class _JobsPageState extends State<JobsPage> {
             filter: _controller.filter,
             sources: services.registry.active(),
             placeCounts: services.database.jobs.placeCounts(),
+            levelCounts: services.database.jobs.levelCounts(),
             // The bar was built before the latest keystrokes reached the
             // list, so keep the query the controller has now.
             onChanged: (filter) => _controller.setFilter(
@@ -313,6 +314,7 @@ class _FilterBar extends StatelessWidget {
     required this.filter,
     required this.sources,
     required this.placeCounts,
+    required this.levelCounts,
     required this.onChanged,
   });
 
@@ -322,7 +324,16 @@ class _FilterBar extends StatelessWidget {
   /// Jobs per place code, so the country menu lists only places that some
   /// job names.
   final Map<String, int> placeCounts;
+
+  /// Jobs per level key, including titles that name no level.
+  final Map<String, int> levelCounts;
   final ValueChanged<JobFilter> onChanged;
+
+  String get _levelsLabel => switch (filter.levels.length) {
+    0 => 'Level',
+    1 => seniorityLabel(filter.levels.single),
+    final count => 'Level ($count)',
+  };
 
   String get _placesLabel => switch (filter.places.length) {
     0 => 'Negara',
@@ -395,6 +406,28 @@ class _FilterBar extends StatelessWidget {
                 child: const Text('Hapus pilihan negara'),
               ),
             ],
+          ],
+        ),
+        _MenuChip(
+          label: _levelsLabel,
+          active: filter.levels.isNotEmpty,
+          items: [
+            // From most junior up, then titles that name no level.
+            for (final key in [
+              for (final level in Seniority.values) level.name,
+              unspecifiedSeniority,
+            ])
+              if ((levelCounts[key] ?? 0) > 0 || filter.levels.contains(key))
+                CheckboxMenuButton(
+                  value: filter.levels.contains(key),
+                  closeOnActivate: false,
+                  onChanged: (_) => onChanged(
+                    filter.copyWith(levels: toggled(filter.levels, key)),
+                  ),
+                  child: Text(
+                    '${seniorityLabel(key)} (${levelCounts[key] ?? 0})',
+                  ),
+                ),
           ],
         ),
         FilterChip(

@@ -28,6 +28,37 @@ void main() {
     age: const Duration(days: 3),
   );
 
+  testWidgets('filters jobs by seniority', (tester) async {
+    final services = testServices(
+      tester,
+      jobs: [
+        testJob('1', title: 'Senior Flutter Engineer'),
+        testJob('2', title: 'Junior Designer'),
+        testJob('3', title: 'Copywriter'),
+      ],
+    );
+    await pumpApp(tester, services);
+
+    await tester.tap(find.text('Level'));
+    await tester.pumpAndSettle();
+    expect(find.text('Junior (1)'), findsOneWidget);
+    expect(find.text('Senior (1)'), findsOneWidget);
+    expect(find.text('Tidak disebut (1)'), findsOneWidget);
+    expect(find.textContaining('Magang'), findsNothing);
+
+    await tester.tap(find.text('Junior (1)'));
+    await tester.pumpAndSettle();
+    await tester.tap(find.text('Tidak disebut (1)'));
+    await tester.pumpAndSettle();
+    await tester.tapAt(const Offset(1000, 600));
+    await tester.pumpAndSettle();
+
+    expect(find.text('Level (2)'), findsOneWidget);
+    expect(find.text('Junior Designer'), findsOneWidget);
+    expect(find.text('Copywriter'), findsOneWidget);
+    expect(find.text('Senior Flutter Engineer'), findsNothing);
+  });
+
   testWidgets('filters jobs by country', (tester) async {
     final services = testServices(
       tester,
