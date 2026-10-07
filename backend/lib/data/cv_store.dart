@@ -26,6 +26,25 @@ class StoredReview {
   final DateTime createdAt;
 }
 
+/// Interview preparation made for one job with one CV.
+class StoredInterviewPrep {
+  const StoredInterviewPrep({
+    required this.jobId,
+    required this.cvId,
+    required this.prep,
+    required this.model,
+    required this.costUsd,
+    required this.createdAt,
+  });
+
+  final String jobId;
+  final int cvId;
+  final InterviewPrep prep;
+  final String model;
+  final double costUsd;
+  final DateTime createdAt;
+}
+
 /// The user's CV versions, their reviews, and saved answers.
 class CvStore {
   CvStore(this._db);
@@ -90,10 +109,19 @@ class CvStore {
   void rename(int id, String name) =>
       _db.execute('UPDATE cvs SET name = ? WHERE id = ?', [name.trim(), id]);
 
-  /// Removes a CV together with its reviews.
+  /// Removes a CV together with its reviews and interview practice, which
+  /// quote its contents.
   void delete(int id) {
-    _db.execute('DELETE FROM reviews WHERE cv_id = ?', [id]);
-    _db.execute('DELETE FROM cvs WHERE id = ?', [id]);
+    _db.execute('BEGIN');
+    try {
+      _db.execute('DELETE FROM reviews WHERE cv_id = ?', [id]);
+      _db.execute('DELETE FROM interview_preps WHERE cv_id = ?', [id]);
+      _db.execute('DELETE FROM cvs WHERE id = ?', [id]);
+      _db.execute('COMMIT');
+    } catch (_) {
+      _db.execute('ROLLBACK');
+      rethrow;
+    }
   }
 
   void saveReview(StoredReview stored) => _db.execute(
@@ -137,6 +165,47 @@ class CvStore {
         ),
       ),
   ];
+
+  void saveInterviewPrep(StoredInterviewPrep stored) => _db.execute(
+    '''
+    INSERT INTO interview_preps
+      (job_id, cv_id, result, model, cost_usd, created_at)
+    VALUES (?, ?, ?, ?, ?, ?)
+    ON CONFLICT (job_id, cv_id) DO UPDATE SET
+      result = excluded.result,
+      model = excluded.model,
+      cost_usd = excluded.cost_usd,
+      created_at = excluded.created_at
+    ''',
+    [
+      stored.jobId,
+      stored.cvId,
+      jsonEncode(stored.prep.toJson()),
+      stored.model,
+      stored.costUsd,
+      stored.createdAt.millisecondsSinceEpoch,
+    ],
+  );
+
+  /// The interview preparation for [jobId] with [cvId], if one was made.
+  StoredInterviewPrep? interviewPrepFor(String jobId, int cvId) {
+    final rows = _db.select(
+      'SELECT * FROM interview_preps WHERE job_id = ? AND cv_id = ?',
+      [jobId, cvId],
+    );
+    if (rows.isEmpty) return null;
+    final row = rows.first;
+    return StoredInterviewPrep(
+      jobId: jobId,
+      cvId: cvId,
+      prep: InterviewPrep.fromJson(
+        jsonDecode(row['result'] as String) as Map<String, Object?>,
+      ),
+      model: row['model'] as String,
+      costUsd: (row['cost_usd'] as num).toDouble(),
+      createdAt: DateTime.fromMillisecondsSinceEpoch(row['created_at'] as int),
+    );
+  }
 
   /// Total spent on AI requests so far, in US dollars.
   double totalCostUsd() =>

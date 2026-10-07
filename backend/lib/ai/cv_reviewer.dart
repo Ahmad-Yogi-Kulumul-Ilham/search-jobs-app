@@ -97,6 +97,137 @@ class CoverLetter {
   final String body;
 }
 
+/// The kinds of interview question, in the order they are practised.
+enum QuestionKind {
+  behavioral('Pengalaman & perilaku'),
+  technical('Teknis & keahlian'),
+  role('Tentang peran & perusahaan'),
+  remote('Kerja remote'),
+  tricky('Pertanyaan sulit');
+
+  const QuestionKind(this.label);
+
+  final String label;
+
+  static QuestionKind byName(Object? name) =>
+      values.where((kind) => kind.name == name).firstOrNull ?? behavioral;
+}
+
+/// One likely interview question, with how to answer it.
+class InterviewQuestion {
+  const InterviewQuestion({
+    required this.kind,
+    required this.question,
+    required this.why,
+    required this.tips,
+    required this.sampleAnswer,
+  });
+
+  factory InterviewQuestion.fromJson(Map<String, Object?> json) =>
+      InterviewQuestion(
+        kind: QuestionKind.byName(json['kind']),
+        question: '${json['question'] ?? ''}',
+        why: '${json['why'] ?? ''}',
+        tips: '${json['tips'] ?? ''}',
+        sampleAnswer: '${json['sample_answer'] ?? ''}',
+      );
+
+  final QuestionKind kind;
+
+  /// In the language the interview will be held in, like the posting.
+  final String question;
+
+  /// Why interviewers ask it, in Indonesian.
+  final String why;
+  final String tips;
+
+  /// A first-person answer built only from the CV.
+  final String sampleAnswer;
+
+  Map<String, Object?> toJson() => {
+    'kind': kind.name,
+    'question': question,
+    'why': why,
+    'tips': tips,
+    'sample_answer': sampleAnswer,
+  };
+}
+
+/// Preparation for interviewing for one job with one CV.
+class InterviewPrep {
+  const InterviewPrep({
+    required this.overview,
+    required this.questions,
+    required this.questionsToAsk,
+    required this.toPrepare,
+  });
+
+  factory InterviewPrep.fromJson(Map<String, Object?> json) {
+    List<Object?> list(String key) =>
+        json[key] is List ? json[key] as List : const [];
+    return InterviewPrep(
+      overview: '${json['overview'] ?? ''}',
+      questions: [
+        for (final item in list('questions'))
+          if (item is Map<String, Object?>) InterviewQuestion.fromJson(item),
+      ],
+      questionsToAsk: [for (final item in list('questions_to_ask')) '$item'],
+      toPrepare: [for (final item in list('to_prepare')) '$item'],
+    );
+  }
+
+  /// What the interviews will likely focus on, in Indonesian.
+  final String overview;
+  final List<InterviewQuestion> questions;
+
+  /// Good questions for the candidate to ask the interviewer.
+  final List<String> questionsToAsk;
+
+  /// What to look up or get ready beforehand, in Indonesian.
+  final List<String> toPrepare;
+
+  Map<String, Object?> toJson() => {
+    'overview': overview,
+    'questions': [for (final q in questions) q.toJson()],
+    'questions_to_ask': questionsToAsk,
+    'to_prepare': toPrepare,
+  };
+}
+
+/// A coach's view of one practice answer.
+class AnswerFeedback {
+  const AnswerFeedback({
+    required this.rating,
+    required this.summary,
+    required this.strengths,
+    required this.improvements,
+    required this.improvedAnswer,
+  });
+
+  factory AnswerFeedback.fromJson(Map<String, Object?> json) {
+    List<String> strings(Object? value) => [
+      for (final item in value is List ? value : const []) '$item',
+    ];
+    final rating = json['rating'];
+    return AnswerFeedback(
+      rating: (rating is num ? rating.round() : 1).clamp(1, 5),
+      summary: '${json['summary'] ?? ''}',
+      strengths: strings(json['strengths']),
+      improvements: strings(json['improvements']),
+      improvedAnswer: '${json['improved_answer'] ?? ''}',
+    );
+  }
+
+  /// 1 (weak) to 5 (ready for the interview).
+  final int rating;
+  final String summary;
+  final List<String> strengths;
+  final List<String> improvements;
+
+  /// The user's answer reworked, keeping to what they and the CV said.
+  final String improvedAnswer;
+}
+
 /// What a review or draft cost, for showing the user.
 class AiUsage {
   const AiUsage({required this.model, required this.costUsd});
@@ -177,6 +308,45 @@ class CvReviewer {
     return ('${result.json['answer'] ?? ''}', _usage(result));
   }
 
+  /// Likely interview questions for [job], with answers drawn from [cv].
+  Future<(InterviewPrep, AiUsage)> interviewPrep({
+    required Cv cv,
+    required Job job,
+    required String jobDescription,
+  }) async {
+    final result = await _client.createJson(
+      system: _interviewSystem,
+      content: [
+        _cvBlock(cv),
+        _jobBlock(job, jobDescription),
+        const AiText('Prepare me for the interviews for this job.'),
+      ],
+      schema: _interviewSchema,
+    );
+    return (InterviewPrep.fromJson(result.json), _usage(result));
+  }
+
+  /// Rates a practice [answer] to [question] and shows how to improve it.
+  Future<(AnswerFeedback, AiUsage)> answerFeedback({
+    required Cv cv,
+    required Job job,
+    required String jobDescription,
+    required String question,
+    required String answer,
+  }) async {
+    final result = await _client.createJson(
+      system: _feedbackSystem,
+      content: [
+        _cvBlock(cv),
+        _jobBlock(job, jobDescription),
+        AiText('Interview question:\n$question\n\nMy answer:\n$answer'),
+      ],
+      schema: _feedbackSchema,
+      effort: 'medium',
+    );
+    return (AnswerFeedback.fromJson(result.json), _usage(result));
+  }
+
   AiUsage _usage(AiResult result) =>
       AiUsage(model: result.model, costUsd: result.costUsd);
 }
@@ -241,6 +411,111 @@ const _answerSystem =
     "the job posting. $_honesty Where the answer depends on something only "
     'the candidate knows, such as salary expectations or notice period, '
     'leave a short placeholder in square brackets.';
+
+const _interviewSystem =
+    'You coach a job seeker based in Indonesia for interviews for a remote '
+    'job at a company abroad. You receive their CV and the job posting.\n\n'
+    'List the 10 to 12 questions they are most likely to be asked for this '
+    'role, specific to this posting rather than generic: experience and '
+    'behaviour, technical skills the posting names, the role and company, '
+    'working remotely across time zones from Indonesia, and the hard ones '
+    '(gaps the CV shows against the posting, salary expectations, why leave '
+    'the current job). For each, say why interviewers ask it and how to '
+    'answer well, and write a sample answer in the first person, about 120 '
+    'to 200 words, using the STAR shape for behavioural questions. '
+    '$_honesty Where the CV has nothing to draw on, write the answer around '
+    'a placeholder in square brackets for the candidate to fill in, rather '
+    'than inventing a story.\n\n'
+    'Write questions, sample answers, and questions to ask in the language '
+    'of the job posting, since the interview will be in it. Write the '
+    'overview, the reasons, the tips, and what to prepare in Indonesian.';
+
+const _feedbackSystem =
+    'You coach a job seeker based in Indonesia for an interview for a '
+    'remote job abroad. You receive their CV, the job posting, one likely '
+    'interview question, and their practice answer.\n\n'
+    'Judge the answer as the interviewer would: does it answer the '
+    'question, is it specific, does it show impact, is it the right length '
+    'for a spoken answer, and does it connect to what this posting needs. '
+    'Be encouraging but honest. Write the summary, strengths, and '
+    'improvements in Indonesian. Then rewrite the answer in the language of '
+    'the question, keeping to what the answer and the CV say. $_honesty '
+    'Mark anything the candidate should add from their own experience with '
+    'a short placeholder in square brackets.';
+
+const _interviewSchema = <String, Object?>{
+  'type': 'object',
+  'additionalProperties': false,
+  'required': ['overview', 'questions', 'questions_to_ask', 'to_prepare'],
+  'properties': {
+    'overview': {
+      'type': 'string',
+      'description':
+          'Two or three sentences in Indonesian on what these interviews '
+          'will likely focus on.',
+    },
+    'questions': {
+      'type': 'array',
+      'items': {
+        'type': 'object',
+        'additionalProperties': false,
+        'required': ['kind', 'question', 'why', 'tips', 'sample_answer'],
+        'properties': {
+          'kind': {
+            'type': 'string',
+            'enum': ['behavioral', 'technical', 'role', 'remote', 'tricky'],
+          },
+          'question': {'type': 'string'},
+          'why': {'type': 'string'},
+          'tips': {'type': 'string'},
+          'sample_answer': {'type': 'string'},
+        },
+      },
+    },
+    'questions_to_ask': {
+      'type': 'array',
+      'items': {'type': 'string'},
+      'description': 'Three to five good questions to ask the interviewer.',
+    },
+    'to_prepare': {
+      'type': 'array',
+      'items': {'type': 'string'},
+      'description':
+          'In Indonesian: what to research or get ready, such as the '
+          'company product, time-zone overlap, or a salary range in USD.',
+    },
+  },
+};
+
+const _feedbackSchema = <String, Object?>{
+  'type': 'object',
+  'additionalProperties': false,
+  'required': [
+    'rating',
+    'summary',
+    'strengths',
+    'improvements',
+    'improved_answer',
+  ],
+  'properties': {
+    'rating': {
+      'type': 'integer',
+      'description':
+          '1 to 5: 1 misses the question, 3 acceptable, 5 ready for the '
+          'interview.',
+    },
+    'summary': {'type': 'string'},
+    'strengths': {
+      'type': 'array',
+      'items': {'type': 'string'},
+    },
+    'improvements': {
+      'type': 'array',
+      'items': {'type': 'string'},
+    },
+    'improved_answer': {'type': 'string'},
+  },
+};
 
 const _reviewSchema = <String, Object?>{
   'type': 'object',

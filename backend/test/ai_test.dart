@@ -374,6 +374,159 @@ void main() {
     });
   });
 
+  group('interview practice', () {
+    final cv = Cv(
+      id: 1,
+      name: 'CV',
+      fileName: 'cv.docx',
+      format: CvFormat.docx,
+      bytes: Uint8List(0),
+      text: 'Budi Santoso, Flutter developer, 3 years',
+      createdAt: DateTime(2026),
+    );
+    const prepJson = {
+      'overview': 'Fokus pada Flutter dan kerja lintas zona waktu.',
+      'questions': [
+        {
+          'kind': 'technical',
+          'question': 'How do you manage state in a large Flutter app?',
+          'why': 'Menguji pengalaman arsitektur.',
+          'tips': 'Sebutkan contoh nyata.',
+          'sample_answer': 'In my last project I used Riverpod…',
+        },
+        {
+          'kind': 'remote',
+          'question': 'How do you work across time zones?',
+          'why': 'Tim tersebar.',
+          'tips': 'Jelaskan jam overlap.',
+          'sample_answer': 'I keep a 4-hour overlap with [team time zone]…',
+        },
+      ],
+      'questions_to_ask': ['What does success look like in 90 days?'],
+      'to_prepare': ['Hitung jam overlap dengan zona waktu tim.'],
+    };
+
+    test(
+      'prepares likely questions grounded in the CV, and keeps them',
+      () async {
+        late Map<String, Object?> sent;
+        final reviewer = CvReviewer(
+          ClaudeClient(
+            apiKey: 'k',
+            model: AiModel.opus,
+            client: MockClient((r) async {
+              sent = jsonDecode(r.body) as Map<String, Object?>;
+              return _messageResponse(prepJson);
+            }),
+          ),
+        );
+
+        final (prep, usage) = await reviewer.interviewPrep(
+          cv: cv,
+          job: _job,
+          jobDescription: 'We need Flutter.',
+        );
+
+        expect(sent['system'], contains('Never add experience'));
+        expect(sent['system'], contains('language of the job posting'));
+        final schema = (sent['output_config'] as Map)['format'] as Map;
+        expect(
+          ((schema['schema'] as Map)['required'] as List),
+          contains('questions_to_ask'),
+        );
+        expect(prep.questions, hasLength(2));
+        expect(prep.questions.first.kind, QuestionKind.technical);
+        expect(prep.questions.last.kind, QuestionKind.remote);
+        expect(prep.toPrepare.single, contains('overlap'));
+
+        // Stored per job and CV, so reopening costs nothing.
+        final database = AppDatabase.inMemory();
+        addTearDown(database.close);
+        database.cvs.saveInterviewPrep(
+          StoredInterviewPrep(
+            jobId: _job.id,
+            cvId: cv.id,
+            prep: prep,
+            model: usage.model,
+            costUsd: usage.costUsd,
+            createdAt: DateTime(2026, 10, 7),
+          ),
+        );
+        final stored = database.cvs.interviewPrepFor(_job.id, cv.id)!;
+        expect(stored.prep.questions.first.question, contains('state'));
+        expect(stored.prep.questionsToAsk, prep.questionsToAsk);
+        expect(database.cvs.interviewPrepFor(_job.id, 99), isNull);
+
+        // Deleting the CV removes the practice built from it, and only that.
+        final first = database.cvs.add(
+          name: 'CV',
+          fileName: 'a.pdf',
+          bytes: _pdf,
+          now: DateTime(2026, 10, 7),
+        );
+        expect(first.id, cv.id);
+        final stored2 = database.cvs.add(
+          name: 'Other',
+          fileName: 'b.pdf',
+          bytes: _pdf,
+          now: DateTime(2026, 10, 7),
+        );
+        database.cvs.saveInterviewPrep(
+          StoredInterviewPrep(
+            jobId: _job.id,
+            cvId: stored2.id,
+            prep: prep,
+            model: usage.model,
+            costUsd: 0,
+            createdAt: DateTime(2026, 10, 7),
+          ),
+        );
+        database.cvs.delete(stored2.id);
+        expect(database.cvs.interviewPrepFor(_job.id, stored2.id), isNull);
+        expect(database.cvs.interviewPrepFor(_job.id, cv.id), isNotNull);
+      },
+    );
+
+    test('rates a practice answer and suggests a better one', () async {
+      late Map<String, Object?> sent;
+      final reviewer = CvReviewer(
+        ClaudeClient(
+          apiKey: 'k',
+          model: AiModel.sonnet,
+          client: MockClient((r) async {
+            sent = jsonDecode(r.body) as Map<String, Object?>;
+            return _messageResponse({
+              'rating': 9,
+              'summary': 'Jawaban sudah menjawab, tapi kurang contoh.',
+              'strengths': ['Jelas'],
+              'improvements': ['Tambahkan hasil yang terukur'],
+              'improved_answer': 'I keep a daily overlap of [hours]…',
+            });
+          }),
+        ),
+      );
+
+      final (feedback, _) = await reviewer.answerFeedback(
+        cv: cv,
+        job: _job,
+        jobDescription: '',
+        question: 'How do you work across time zones?',
+        answer: 'I am flexible.',
+      );
+
+      final content =
+          ((sent['messages'] as List).single as Map)['content'] as List;
+      expect(
+        (content.last as Map)['text'],
+        contains('My answer:\nI am flexible.'),
+      );
+      // Ratings outside 1 to 5 are clamped.
+      expect(feedback.rating, 5);
+      expect(feedback.improvements.single, contains('terukur'));
+      expect(feedback.improvedAnswer, contains('[hours]'));
+    });
+  });
+
   group('other providers', () {
     final pdfCv = Cv(
       id: 1,
